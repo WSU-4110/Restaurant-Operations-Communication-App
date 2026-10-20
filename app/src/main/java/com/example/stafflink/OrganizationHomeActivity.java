@@ -4,6 +4,7 @@ package com.example.stafflink;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
@@ -56,6 +57,21 @@ public class OrganizationHomeActivity extends AppCompatActivity {
         organizationNameTitle.setText(organizationName);
 
         loadJoinCode();
+
+        Button generalButton = findViewById(R.id.generalButton);
+
+        generalButton.setOnClickListener(v -> {
+            Intent intent = new Intent(
+                    OrganizationHomeActivity.this,
+                    GeneralChatActivity.class
+            );
+
+            intent.putExtra("organizationId", organizationId);
+            intent.putExtra("organizationName", organizationName);
+
+            startActivity(intent);
+        });
+
     }
 
     private void loadJoinCode() {
