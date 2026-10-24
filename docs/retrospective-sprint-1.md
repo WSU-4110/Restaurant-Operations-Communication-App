@@ -28,12 +28,15 @@ Continue to revisit the requirements and adapt the app as development progresses
 
 **Implement Role-Based Groups**
 
-&#x09;Owner: Andrew, Armando, Timo
+* Owner: Andrew, Armando, Timo, Jaffar
+* Action: Develop role-based groups, including permissions, employee role assignments, and group messaging.
 
 **Implement Task Features**
 
-&#x09;Owner: Cajoh, Yen, Jaffar
+* Owner: Cajoh, Yen
+* Action: Develop task creation and completion functionality within the app.
 
+Throughout Sprint 2, we will also focus on improving communication by being more active in our group chat and having better meeting attendance. We will also try to distribute the workload more evenly among the team members.
 
 
 #### Presentation Feedback:
