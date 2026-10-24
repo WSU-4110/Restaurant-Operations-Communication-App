@@ -48,7 +48,20 @@ Continue to revisit the requirements and adapt the app as development progresses
 
 
 
-##### Backlog:
+##### Sprint 2 Backlog:
+
+| Priority | Issue | Task | Estimated Hours |
+|---|---|---|---|
+| 1 | FR13 | Role Group Creation with Permissions | 10 |
+| 2 | FR14 | Assign Employees to Roles | 7 |
+| 3 | FR15 | Access Role-Based Groups | 6 |
+| 4 | FR6 | Role-Based Group Messaging | 8 |
+| 5 | FR3 | New Task Creation | 6 |
+| 6 | FR4 | Task Completion | 4 |
+| | | **Total** | **41** |
+
+
+#### Additional Improvements
 
 * Performance improvements
 * Reliability
