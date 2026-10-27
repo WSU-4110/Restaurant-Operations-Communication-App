@@ -65,7 +65,6 @@ public class OrganizationHomeActivity extends AppCompatActivity {
             startActivity(intent);
         });
 
-        loadJoinCode();
         syncMemberDisplayName();
 
         Button generalButton = findViewById(R.id.generalButton);
@@ -84,7 +83,6 @@ public class OrganizationHomeActivity extends AppCompatActivity {
 
     }
 
-    
     private void syncMemberDisplayName() {
         FirebaseUser currentUser = auth.getCurrentUser();
         if (currentUser == null) {
@@ -135,64 +133,62 @@ public class OrganizationHomeActivity extends AppCompatActivity {
                         "StaffLink", "Unable to read own user profile", error));
     }
 
-    private void loadJoinCode() {
-        FirebaseUser currentUser = auth.getCurrentUser();
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (db != null && organizationId != null) loadJoinCode();
+    }
 
-        if (currentUser == null) {
+
+    private void loadJoinCode() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) {
             finish();
             return;
         }
 
-        db.collection("organizations")
-                .document(organizationId)
-                .get()
-                .addOnSuccessListener(document -> {
+        findViewById(R.id.manageRolesButton).setVisibility(View.GONE);
+        findViewById(R.id.joinCodeSection).setVisibility(View.GONE);
 
-                    if (!document.exists()) {
-                        return;
-                    }
-
-                    String ownerId = document.getString("ownerId");
-                    String joinCode = document.getString("joinCode");
-                    boolean isOwner = currentUser.getUid().equals(ownerId);
-                    findViewById(R.id.manageRolesButton)
-                            .setVisibility(isOwner ? View.VISIBLE : View.GONE);
-
-                    if (isOwner && joinCode != null) {
-
-                        LinearLayout joinCodeSection =
-                                findViewById(R.id.joinCodeSection);
-
-                        TextView joinCodeText =
-                                findViewById(R.id.joinCodeText);
-
-                        Button copyJoinCodeButton =
-                                findViewById(R.id.copyJoinCodeButton);
-
-                        joinCodeText.setText(joinCode);
-                        joinCodeSection.setVisibility(View.VISIBLE);
-
-                        copyJoinCodeButton.setOnClickListener(v -> {
-
-                            ClipboardManager clipboard =
-                                    (ClipboardManager) getSystemService(
-                                            Context.CLIPBOARD_SERVICE);
-
-                            ClipData clip = ClipData.newPlainText(
-                                    "StaffLink Join Code", joinCode);
-
-                            clipboard.setPrimaryClip(clip);
-
-                            Toast.makeText(this,
-                                    "Join code copied!",
-                                    Toast.LENGTH_SHORT).show();
-                        });
+        db.collection("organizations").document(organizationId).get()
+                .addOnSuccessListener(organization -> {
+                    if (!organization.exists()) return;
+                    String ownerId = organization.getString("ownerId");
+                    String joinCode = organization.getString("joinCode");
+                    if (user.getUid().equals(ownerId)) {
+                        showAdminControls(joinCode);
+                    } else {
+                        db.collection("organizations").document(organizationId)
+                                .collection("members").document(user.getUid()).get()
+                                .addOnSuccessListener(member -> {
+                                    if (member.exists() && "manager".equals(member.getString("role"))) {
+                                        showAdminControls(joinCode);
+                                    }
+                                })
+                                .addOnFailureListener(error -> Log.w("StaffLink", "Could not verify manager", error));
                     }
                 })
-                .addOnFailureListener(e -> {
-                    Toast.makeText(this,
-                            "Error loading organization: " + e.getMessage(),
-                            Toast.LENGTH_LONG).show();
-                });
+                .addOnFailureListener(error -> Toast.makeText(this,
+                        "Error loading organization: " + error.getMessage(),
+                        Toast.LENGTH_LONG).show());
+    }
+
+    private void showAdminControls(String joinCode) {
+        findViewById(R.id.manageRolesButton).setVisibility(View.VISIBLE);
+        if (joinCode == null || joinCode.trim().isEmpty()) return;
+
+        LinearLayout joinCodeSection = findViewById(R.id.joinCodeSection);
+        TextView joinCodeText = findViewById(R.id.joinCodeText);
+        Button copyJoinCodeButton = findViewById(R.id.copyJoinCodeButton);
+        joinCodeText.setText(joinCode);
+        joinCodeSection.setVisibility(View.VISIBLE);
+        copyJoinCodeButton.setOnClickListener(v -> {
+            ClipboardManager clipboard = (ClipboardManager)
+                    getSystemService(Context.CLIPBOARD_SERVICE);
+            if (clipboard != null) {
+                clipboard.setPrimaryClip(ClipData.newPlainText("StaffLink Join Code", joinCode));
+                Toast.makeText(this, "Join code copied!", Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 }

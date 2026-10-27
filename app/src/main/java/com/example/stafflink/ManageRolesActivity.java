@@ -1,33 +1,28 @@
 package com.example.stafflink;
-
 import android.os.Bundle;
-import android.view.View;
+import android.text.InputFilter;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
-
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.CollectionReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
-
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-
 
 public class ManageRolesActivity extends AppCompatActivity {
 
@@ -35,6 +30,7 @@ public class ManageRolesActivity extends AppCompatActivity {
     private String organizationId;
     private String ownerId;
     private String userId;
+    private boolean currentUserIsOwner;
 
     private LinearLayout rolesContainer;
     private LinearLayout membersContainer;
@@ -47,10 +43,14 @@ public class ManageRolesActivity extends AppCompatActivity {
     private static class RoleItem {
         final String id;
         final String name;
+        final boolean viewChat;
+        final boolean sendChat;
 
-        RoleItem(String id, String name) {
+        RoleItem(String id, String name, boolean viewChat, boolean sendChat) {
             this.id = id;
             this.name = name;
+            this.viewChat = viewChat;
+            this.sendChat = sendChat;
         }
     }
 
@@ -58,13 +58,14 @@ public class ManageRolesActivity extends AppCompatActivity {
         final String uid;
         final String membershipType;
         final List<String> roleIds;
-        String displayName;
+        final String displayName;
 
-        MemberItem(String uid, String membershipType, List<String> roleIds) {
+        MemberItem(String uid, String membershipType, List<String> roleIds,
+                   String displayName) {
             this.uid = uid;
             this.membershipType = membershipType;
             this.roleIds = roleIds;
-            this.displayName = "Member " + abbreviated(uid);
+            this.displayName = displayName;
         }
     }
 
@@ -75,7 +76,6 @@ public class ManageRolesActivity extends AppCompatActivity {
 
         FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
         organizationId = getIntent().getStringExtra("organizationId");
-
         if (user == null || organizationId == null || organizationId.trim().isEmpty()) {
             Toast.makeText(this, "Missing login or organization", Toast.LENGTH_LONG).show();
             finish();
@@ -89,103 +89,130 @@ public class ManageRolesActivity extends AppCompatActivity {
         statusText = findViewById(R.id.rolesStatusText);
         createRoleButton = findViewById(R.id.createRoleButton);
         createRoleButton.setEnabled(false);
-        createRoleButton.setOnClickListener(v -> showCreateRoleDialog());
+        createRoleButton.setOnClickListener(v -> showRoleDialog(null));
 
-        // Never trust an intent extra such as "isOwner" to authorize a privileged action.
-        verifyOwnerThenLoad();
     }
 
-    private void verifyOwnerThenLoad() {
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (db != null) verifyAdminThenLoad();
+    }
+
+    private void verifyAdminThenLoad() {
         statusText.setText("Checking organization permissions...");
+        createRoleButton.setEnabled(false);
         db.collection("organizations").document(organizationId).get()
-                .addOnSuccessListener(document -> {
-                    if (!document.exists()) {
+                .addOnSuccessListener(organization -> {
+                    if (!organization.exists()) {
                         denyAccess("Organization not found");
                         return;
                     }
-                    ownerId = document.getString("ownerId");
-                    if (ownerId == null || !ownerId.equals(userId)) {
-                        denyAccess("Only the organization owner can manage roles");
+                    ownerId = organization.getString("ownerId");
+                    currentUserIsOwner = userId.equals(ownerId);
+                    if (currentUserIsOwner) {
+                        loadForAdmin();
                         return;
                     }
-                    createRoleButton.setEnabled(true);
-                    statusText.setText("Tap a member to assign their roles.");
-                    loadRoles();
-                    loadMembers();
+                    membersRef().document(userId).get()
+                            .addOnSuccessListener(myMembership -> {
+                                if (myMembership.exists()
+                                        && "manager".equals(myMembership.getString("role"))) {
+                                    loadForAdmin();
+                                } else {
+                                    denyAccess("Only owners and managers can manage roles");
+                                }
+                            })
+                            .addOnFailureListener(e -> denyAccess("Permission check failed: " + e.getMessage()));
                 })
-                .addOnFailureListener(e -> denyAccess("Unable to verify access: " + e.getMessage()));
+                .addOnFailureListener(e -> denyAccess("Organization lookup failed: " + e.getMessage()));
     }
 
-    private void denyAccess(String message) {
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+    private void loadForAdmin() {
+        createRoleButton.setEnabled(true);
+        statusText.setText(currentUserIsOwner
+                ? "Tap a role to edit it, or a member to assign roles and manager access."
+                : "Tap a role to edit it, or a member to assign job roles.");
+        loadRoles();
+        loadMembers();
+    }
+
+    private void denyAccess(String reason) {
+        Toast.makeText(this, reason, Toast.LENGTH_LONG).show();
         finish();
     }
 
     private CollectionReference rolesRef() {
-        return db.collection("organizations")
-                .document(organizationId).collection("roles");
+        return db.collection("organizations").document(organizationId).collection("roles");
     }
 
     private CollectionReference membersRef() {
-        return db.collection("organizations")
-                .document(organizationId).collection("members");
+        return db.collection("organizations").document(organizationId).collection("members");
     }
 
     private void loadRoles() {
-        rolesRef().get()
-                .addOnSuccessListener(result -> {
-                    roles.clear();
-                    for (DocumentSnapshot document : result.getDocuments()) {
-                        String name = document.getString("name");
-                        if (name != null && !name.trim().isEmpty()) {
-                            roles.add(new RoleItem(document.getId(), name));
-                        }
-                    }
-                    Collections.sort(roles, (a, b) ->
-                            a.name.compareToIgnoreCase(b.name));
-                    renderRoles();
-                    renderMembers();
-                })
-                .addOnFailureListener(e -> showError("Loading roles", e));
+        rolesRef().get().addOnSuccessListener(snapshot -> {
+            roles.clear();
+            for (DocumentSnapshot doc : snapshot.getDocuments()) {
+                if (Boolean.TRUE.equals(doc.getBoolean("archived"))) continue;
+                String name = doc.getString("name");
+                if (name == null || name.trim().isEmpty()) continue;
+
+                // Older role records have no permissions; preserve previous behavior.
+                Object rawPermissions = doc.get("permissions");
+                Map<?, ?> permissions = rawPermissions instanceof Map
+                        ? (Map<?, ?>) rawPermissions : null;
+                boolean view = readPermission(permissions, "viewChat", true);
+                boolean send = readPermission(permissions, "sendChat", true);
+                roles.add(new RoleItem(doc.getId(), name, view, send));
+            }
+            Collections.sort(roles, (a, b) -> a.name.compareToIgnoreCase(b.name));
+            renderRoles();
+            renderMembers();
+        }).addOnFailureListener(e -> showError("Loading roles", e));
+    }
+
+    private boolean readPermission(Map<?, ?> values, String key, boolean fallback) {
+        if (values == null) return fallback;
+        Object value = values.get(key);
+        return value instanceof Boolean ? (Boolean) value : fallback;
     }
 
     private void loadMembers() {
-        membersRef().get()
-                .addOnSuccessListener(result -> {
-                    members.clear();
-                    for (DocumentSnapshot document : result.getDocuments()) {
-                        List<String> savedRoles = new ArrayList<>();
-                        Object raw = document.get("roleIds");
-                        if (raw instanceof List<?>) {
-                            for (Object item : (List<?>) raw) {
-                                if (item instanceof String) {
-                                    savedRoles.add((String) item);
-                                }
-                            }
-                        }
-                        String membershipType = document.getString("role");
-                        MemberItem member = new MemberItem(document.getId(), membershipType, savedRoles);
-                        String savedName = document.getString("displayName");
-                        if (savedName != null && !savedName.trim().isEmpty()) {
-                            member.displayName = savedName.trim();
-                        }
-                        members.add(member);
+        membersRef().get().addOnSuccessListener(snapshot -> {
+            members.clear();
+            for (DocumentSnapshot doc : snapshot.getDocuments()) {
+                List<String> ids = new ArrayList<>();
+                Object raw = doc.get("roleIds");
+                if (raw instanceof List<?>) {
+                    for (Object id : (List<?>) raw) {
+                        if (id instanceof String) ids.add((String) id);
                     }
-                    Collections.sort(members, (a, b) ->
-                            a.displayName.compareToIgnoreCase(b.displayName));
-                    renderMembers();
-                })
-                .addOnFailureListener(e -> showError("Loading organization members", e));
+                }
+                String name = doc.getString("displayName");
+                if (name == null || name.trim().isEmpty()) {
+                    String uid = doc.getId();
+                    name = "Member " + uid.substring(0, Math.min(uid.length(), 8));
+                }
+                members.add(new MemberItem(doc.getId(), doc.getString("role"), ids, name));
+            }
+            Collections.sort(members, (a, b) -> a.displayName.compareToIgnoreCase(b.displayName));
+            renderMembers();
+        }).addOnFailureListener(e -> showError("Loading members", e));
     }
 
     private void renderRoles() {
         rolesContainer.removeAllViews();
         if (roles.isEmpty()) {
-            addLabel(rolesContainer, "No job roles yet. Create Server, Bartender, Host, etc.");
-            return;
+            addLabel(rolesContainer, "No job roles yet. Create a Server, Bartender, or Host role.");
         }
         for (RoleItem role : roles) {
-            addLabel(rolesContainer, "• " + role.name);
+            Button roleButton = new Button(this);
+            roleButton.setAllCaps(false);
+            roleButton.setText(role.name + "\n" + (role.viewChat ? "Can view chat" : "Chat disabled")
+                    + " · " + (role.sendChat ? "Can send" : "Cannot send") + "\nTap to edit");
+            roleButton.setOnClickListener(v -> showRoleDialog(role));
+            rolesContainer.addView(roleButton);
         }
     }
 
@@ -197,13 +224,15 @@ public class ManageRolesActivity extends AppCompatActivity {
         }
         for (MemberItem member : members) {
             boolean isOwner = member.uid.equals(ownerId);
+            boolean isManager = "manager".equals(member.membershipType);
             Button button = new Button(this);
             button.setAllCaps(false);
-            button.setText(member.displayName + (isOwner ? " (Owner)" : "")
+            button.setText(member.displayName
+                    + (isOwner ? " (Owner)" : (isManager ? " (Manager)" : ""))
                     + "\nAssigned roles: " + roleNames(member.roleIds)
-                    + (isOwner ? "" : "\nTap to change"));
+                    + (isOwner ? "" : "\nTap to manage"));
             button.setEnabled(!isOwner);
-            button.setOnClickListener(v -> showAssignRolesDialog(member));
+            button.setOnClickListener(v -> showMemberDialog(member));
             membersContainer.addView(button);
         }
     }
@@ -221,105 +250,228 @@ public class ManageRolesActivity extends AppCompatActivity {
         return names.isEmpty() ? "None" : android.text.TextUtils.join(", ", names);
     }
 
-    private void addLabel(LinearLayout container, String text) {
+    private void addLabel(LinearLayout container, String value) {
         TextView label = new TextView(this);
-        label.setText(text);
+        label.setText(value);
         label.setTextSize(16);
-        int padding = (int) (10 * getResources().getDisplayMetrics().density);
+        int padding = dp(10);
         label.setPadding(0, padding, 0, padding);
         container.addView(label);
     }
 
-    private void showCreateRoleDialog() {
-        EditText input = new EditText(this);
-        input.setSingleLine(true);
-        input.setHint("Example: Bartender");
-        input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(40)});
-        int pad = (int) (20 * getResources().getDisplayMetrics().density);
-        LinearLayout wrapper = new LinearLayout(this);
-        wrapper.setPadding(pad, 0, pad, 0);
-        wrapper.addView(input, new LinearLayout.LayoutParams(-1, -2));
+    private int dp(int size) {
+        return (int) (size * getResources().getDisplayMetrics().density + 0.5f);
+    }
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Create restaurant role")
-                .setView(wrapper)
-                .setPositiveButton("Create", null)
-                .setNegativeButton("Cancel", null)
-                .create();
-        dialog.setOnShowListener(ignored ->
-                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-                    String name = input.getText().toString().trim().replaceAll("\\s+", " ");
-                    if (name.isEmpty()) {
-                        input.setError("Enter a role name");
-                        return;
-                    }
-                    for (RoleItem role : roles) {
-                        if (role.name.equalsIgnoreCase(name)) {
-                            input.setError("This role already exists");
-                            return;
-                        }
-                    }
-                    createRoleButton.setEnabled(false);
+    private ScrollView scrollForm(LinearLayout content) {
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(false);
+        scroll.addView(content);
+        return scroll;
+    }
+
+    private LinearLayout formContainer() {
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(dp(20), dp(8), dp(20), dp(8));
+        return layout;
+    }
+
+    private Map<String, Object> permissions(boolean viewChat, boolean sendChat) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("viewChat", viewChat);
+        data.put("sendChat", sendChat);
+        return data;
+    }
+
+    private boolean duplicateName(String proposedName, String excludingId) {
+        if (proposedName.equalsIgnoreCase("owner") || proposedName.equalsIgnoreCase("manager"))
+            return true;
+        for (RoleItem other : roles) {
+            if (!other.id.equals(excludingId) && other.name.equalsIgnoreCase(proposedName))
+                return true;
+        }
+        return false;
+    }
+
+    private void showRoleDialog(RoleItem existing) {
+        LinearLayout form = formContainer();
+        EditText name = new EditText(this);
+        name.setSingleLine(true);
+        name.setHint("Role name (e.g., Server)");
+        name.setFilters(new InputFilter[]{new InputFilter.LengthFilter(40)});
+        if (existing != null) name.setText(existing.name);
+        form.addView(name);
+
+        CheckBox viewChat = new CheckBox(this);
+        viewChat.setText("Members can view this role's chat");
+        viewChat.setChecked(existing == null || existing.viewChat);
+        form.addView(viewChat);
+
+        CheckBox sendChat = new CheckBox(this);
+        sendChat.setText("Members can send messages in this chat");
+        sendChat.setChecked(existing == null || existing.sendChat);
+        sendChat.setEnabled(viewChat.isChecked());
+        form.addView(sendChat);
+
+        viewChat.setOnCheckedChangeListener((button, checked) -> {
+            if (!checked) sendChat.setChecked(false);
+            sendChat.setEnabled(checked);
+        });
+
+        TextView note = new TextView(this);
+        note.setText("Chat restrictions will take effect when the role-specific chat "
+                + "screens and Firestore rules are implemented. Managers always have full chat access.");
+        note.setPadding(0, dp(12), 0, 0);
+        form.addView(note);
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this)
+                .setTitle(existing == null ? "Create job role" : "Edit " + existing.name)
+                .setView(scrollForm(form))
+                .setPositiveButton(existing == null ? "Create" : "Save", null)
+                .setNegativeButton("Cancel", null);
+        if (existing != null) {
+            builder.setNeutralButton("Archive", (dialog, which) -> confirmArchive(existing));
+        }
+
+        AlertDialog dialog = builder.create();
+        dialog.setOnShowListener(unused -> {
+            Button saveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            saveButton.setOnClickListener(v -> {
+                String newName = name.getText().toString().trim().replaceAll("\\s+", " ");
+                if (newName.isEmpty()) {
+                    name.setError("Enter a name");
+                    return;
+                }
+                if (duplicateName(newName, existing == null ? "" : existing.id)) {
+                    name.setError("Role name already exists or is reserved");
+                    return;
+                }
+                saveButton.setEnabled(false);
+                Map<String, Object> newPermissions = permissions(viewChat.isChecked(),
+                        viewChat.isChecked() && sendChat.isChecked());
+                if (existing == null) {
                     Map<String, Object> data = new HashMap<>();
-                    data.put("name", name);
+                    data.put("name", newName);
                     data.put("createdBy", userId);
                     data.put("createdAt", FieldValue.serverTimestamp());
+                    data.put("archived", false);
+                    data.put("permissions", newPermissions);
                     rolesRef().add(data)
-                            .addOnSuccessListener(ref -> {
+                            .addOnSuccessListener(reference -> {
                                 dialog.dismiss();
-                                createRoleButton.setEnabled(true);
                                 Toast.makeText(this, "Role created", Toast.LENGTH_SHORT).show();
                                 loadRoles();
                             })
                             .addOnFailureListener(e -> {
-                                createRoleButton.setEnabled(true);
+                                saveButton.setEnabled(true);
                                 showError("Creating role", e);
                             });
-                }));
+                } else {
+                    Map<String, Object> updates = new HashMap<>();
+                    updates.put("name", newName);
+                    updates.put("permissions", newPermissions);
+                    updates.put("updatedAt", FieldValue.serverTimestamp());
+                    rolesRef().document(existing.id).update(updates)
+                            .addOnSuccessListener(unused2 -> {
+                                dialog.dismiss();
+                                Toast.makeText(this, "Role updated", Toast.LENGTH_SHORT).show();
+                                loadRoles();
+                            })
+                            .addOnFailureListener(e -> {
+                                saveButton.setEnabled(true);
+                                showError("Saving role", e);
+                            });
+                }
+            });
+        });
         dialog.show();
     }
 
-    private void showAssignRolesDialog(MemberItem member) {
-        if (roles.isEmpty()) {
-            Toast.makeText(this, "Create a role first", Toast.LENGTH_SHORT).show();
-            return;
+    private void confirmArchive(RoleItem role) {
+        new AlertDialog.Builder(this)
+                .setTitle("Archive " + role.name + "?")
+                .setMessage("The role will disappear from active lists and members will lose "
+                        + "access to its future chat. Existing role IDs and any chat history "
+                        + "will be retained in Firestore.")
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Archive", (dialog, which) -> {
+                    Map<String, Object> updates = new HashMap<>();
+                    updates.put("archived", true);
+                    updates.put("archivedAt", FieldValue.serverTimestamp());
+                    updates.put("updatedAt", FieldValue.serverTimestamp());
+                    rolesRef().document(role.id).update(updates)
+                            .addOnSuccessListener(unused -> {
+                                Toast.makeText(this, "Role archived", Toast.LENGTH_SHORT).show();
+                                loadRoles();
+                            })
+                            .addOnFailureListener(e -> showError("Archiving role", e));
+                }).show();
+    }
+
+    private void showMemberDialog(MemberItem member) {
+        if (member.uid.equals(ownerId)) return;
+        LinearLayout form = formContainer();
+        TextView hint = new TextView(this);
+        hint.setText("Assign job roles to " + member.displayName);
+        hint.setTextSize(16);
+        hint.setPadding(0, 0, 0, dp(8));
+        form.addView(hint);
+
+        Set<String> selectedIds = new HashSet<>(member.roleIds);
+        List<CheckBox> roleBoxes = new ArrayList<>();
+        for (RoleItem role : roles) {
+            CheckBox choice = new CheckBox(this);
+            choice.setText(role.name);
+            choice.setTag(role.id);
+            choice.setChecked(selectedIds.contains(role.id));
+            form.addView(choice);
+            roleBoxes.add(choice);
         }
-        String[] names = new String[roles.size()];
-        boolean[] checked = new boolean[roles.size()];
-        Set<String> assigned = new HashSet<>(member.roleIds);
-        for (int i = 0; i < roles.size(); i++) {
-            names[i] = roles.get(i).name;
-            checked[i] = assigned.contains(roles.get(i).id);
-        }
+        if (roles.isEmpty()) addLabel(form, "No active job roles yet.");
+
+        CheckBox managerBox = new CheckBox(this);
+        managerBox.setText("Manager: access all chats, join code, and role management");
+        managerBox.setChecked("manager".equals(member.membershipType));
+        managerBox.setEnabled(currentUserIsOwner);
+        managerBox.setPadding(0, dp(10), 0, 0);
+        form.addView(managerBox);
+        if (!currentUserIsOwner) addLabel(form, "Only the organization owner can grant or remove Manager access.");
 
         new AlertDialog.Builder(this)
-                .setTitle("Assign roles: " + member.displayName)
-                .setMultiChoiceItems(names, checked, (dialog, index, selected) ->
-                        checked[index] = selected)
+                .setTitle("Manage " + member.displayName)
+                .setView(scrollForm(form))
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Save", (dialog, which) -> {
-                    List<String> selectedIds = new ArrayList<>();
-                    for (int i = 0; i < roles.size(); i++) {
-                        if (checked[i]) selectedIds.add(roles.get(i).id);
+                    // Preserve inactive role IDs; never silently remove archived assignments.
+                    Set<String> activeIds = new HashSet<>();
+                    for (RoleItem role : roles) activeIds.add(role.id);
+                    List<String> updated = new ArrayList<>();
+                    for (String id : member.roleIds) {
+                        if (!activeIds.contains(id) && !updated.contains(id)) updated.add(id);
                     }
-                    // update() preserves the existing role:"employee"/"owner" field.
-                    membersRef().document(member.uid).update("roleIds", selectedIds)
+                    for (CheckBox box : roleBoxes) {
+                        if (box.isChecked()) updated.add((String) box.getTag());
+                    }
+                    if (updated.size() > 20) {
+                        Toast.makeText(this, "A member can have at most 20 roles", Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    Map<String, Object> updates = new HashMap<>();
+                    updates.put("roleIds", updated);
+                    if (currentUserIsOwner) {
+                        updates.put("role", managerBox.isChecked() ? "manager" : "employee");
+                    }
+                    membersRef().document(member.uid).update(updates)
                             .addOnSuccessListener(unused -> {
-                                Toast.makeText(this, "Roles updated", Toast.LENGTH_SHORT).show();
+                                Toast.makeText(this, "Member roles saved", Toast.LENGTH_SHORT).show();
                                 loadMembers();
                             })
-                            .addOnFailureListener(e -> showError("Assigning roles", e));
-                })
-                .show();
+                            .addOnFailureListener(e -> showError("Saving member roles", e));
+                }).show();
     }
 
-    private void showError(String operation, Exception e) {
-        Toast.makeText(this, operation + " failed: " + e.getMessage(),
-                Toast.LENGTH_LONG).show();
-    }
-
-    private static String abbreviated(String id) {
-        if (id == null) return "unknown";
-        return id.substring(0, Math.min(8, id.length()));
+    private void showError(String action, Exception e) {
+        Toast.makeText(this, action + " failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
     }
 }

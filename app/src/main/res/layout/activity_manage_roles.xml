@@ -2,6 +2,7 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/background"
     android:fillViewport="true">
 
     <LinearLayout
@@ -14,6 +15,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Manage Restaurant Roles"
+            android:textColor="@color/stafflink_1"
             android:textSize="24sp"
             android:textStyle="bold" />
 
@@ -29,20 +31,29 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="Create Role" />
+            android:text="Create Job Role"
+            android:textAllCaps="false" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="20dp"
-            android:text="Roles"
+            android:text="Job Roles"
             android:textSize="20sp"
             android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="Tap a role to rename it, edit chat permissions, or archive it."
+            android:textSize="14sp" />
 
         <LinearLayout
             android:id="@+id/rolesContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
             android:orientation="vertical" />
 
         <TextView
@@ -52,6 +63,13 @@
             android:text="Organization Members"
             android:textSize="20sp"
             android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="Owners can grant Manager access. Owners and managers can assign job roles."
+            android:textSize="14sp" />
 
         <LinearLayout
             android:id="@+id/membersContainer"
