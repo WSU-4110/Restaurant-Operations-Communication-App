@@ -51,6 +51,9 @@ public class OrganizationsActivity extends AppCompatActivity {
         noOrganizationsText = findViewById(R.id.noOrganizationsText);
         organizationHelpText = findViewById(R.id.organizationHelpText);
 
+        Button logOutButton = findViewById(R.id.logOutButton);
+        logOutButton.setOnClickListener(v -> confirmLogOut());
+
         Button addOrganizationButton = findViewById(R.id.addOrganizationButton);
 
         addOrganizationButton.setOnClickListener(v -> {
@@ -76,6 +79,22 @@ public class OrganizationsActivity extends AppCompatActivity {
                     })
                     .show();
         });
+    }
+
+    private void confirmLogOut() {
+        new AlertDialog.Builder(this)
+                .setTitle("Log out of StaffLink?")
+                .setMessage("You will need to log in again to access your organizations.")
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Log Out", (dialog, which) -> {
+                    auth.signOut();
+
+                    Intent intent = new Intent(this, MainActivity.class);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                    startActivity(intent);
+                    finish();
+                })
+                .show();
     }
 
     @Override

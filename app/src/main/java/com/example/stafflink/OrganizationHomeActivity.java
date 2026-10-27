@@ -6,6 +6,7 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -56,7 +57,6 @@ public class OrganizationHomeActivity extends AppCompatActivity {
         TextView organizationNameTitle = findViewById(R.id.organizationNameTitle);
         organizationNameTitle.setText(organizationName);
 
-        // Only the organization owner will see this button after loadJoinCode().
         Button manageRolesButton = findViewById(R.id.manageRolesButton);
         manageRolesButton.setVisibility(View.GONE);
         manageRolesButton.setOnClickListener(v -> {
@@ -66,6 +66,7 @@ public class OrganizationHomeActivity extends AppCompatActivity {
         });
 
         loadJoinCode();
+        syncMemberDisplayName();
 
         Button generalButton = findViewById(R.id.generalButton);
 
@@ -81,6 +82,57 @@ public class OrganizationHomeActivity extends AppCompatActivity {
             startActivity(intent);
         });
 
+    }
+
+    
+    private void syncMemberDisplayName() {
+        FirebaseUser currentUser = auth.getCurrentUser();
+        if (currentUser == null) {
+            return;
+        }
+
+        String uid = currentUser.getUid();
+        db.collection("users").document(uid).get()
+                .addOnSuccessListener(profile -> {
+                    if (!profile.exists()) {
+                        return;
+                    }
+
+                    String firstName = profile.getString("firstName");
+                    String lastName = profile.getString("lastName");
+                    String displayName = (
+                            (firstName == null ? "" : firstName.trim()) + " " +
+                            (lastName == null ? "" : lastName.trim())
+                    ).trim();
+                    displayName = displayName.replaceAll("\\s+", " ");
+
+                    if (displayName.isEmpty() || displayName.length() > 100) {
+                        Log.w("StaffLink", "Profile name is missing or too long");
+                        return;
+                    }
+
+                    final String nameToSave = displayName;
+                    db.collection("organizations")
+                            .document(organizationId)
+                            .collection("members")
+                            .document(uid)
+                            .get()
+                            .addOnSuccessListener(membership -> {
+                                if (!membership.exists()) {
+                                    return;
+                                }
+                                if (nameToSave.equals(membership.getString("displayName"))) {
+                                    return; // Avoid unnecessary writes on every visit.
+                                }
+                                membership.getReference().update("displayName", nameToSave)
+                                        .addOnFailureListener(error -> Log.w(
+                                                "StaffLink", "Unable to sync member display name", error));
+                            })
+                            .addOnFailureListener(error -> Log.w(
+                                    "StaffLink", "Unable to read membership for display name", error));
+                })
+                .addOnFailureListener(error -> Log.w(
+                        "StaffLink", "Unable to read own user profile", error));
     }
 
     private void loadJoinCode() {

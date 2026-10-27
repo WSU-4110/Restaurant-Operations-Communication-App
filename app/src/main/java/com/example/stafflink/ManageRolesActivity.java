@@ -28,12 +28,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Lets an organization owner create job roles and assign multiple roles to members.
- *
- * Important: this checks ownerId for UI purposes only. Firestore Security Rules MUST
- * separately enforce ownership for role creation and membership updates.
- */
+
 public class ManageRolesActivity extends AppCompatActivity {
 
     private FirebaseFirestore db;
@@ -169,32 +164,18 @@ public class ManageRolesActivity extends AppCompatActivity {
                             }
                         }
                         String membershipType = document.getString("role");
-                        members.add(new MemberItem(document.getId(), membershipType, savedRoles));
+                        MemberItem member = new MemberItem(document.getId(), membershipType, savedRoles);
+                        String savedName = document.getString("displayName");
+                        if (savedName != null && !savedName.trim().isEmpty()) {
+                            member.displayName = savedName.trim();
+                        }
+                        members.add(member);
                     }
-                    Collections.sort(members, Comparator.comparing(m -> m.uid));
+                    Collections.sort(members, (a, b) ->
+                            a.displayName.compareToIgnoreCase(b.displayName));
                     renderMembers();
-                    for (MemberItem member : members) {
-                        lookupMemberName(member);
-                    }
                 })
                 .addOnFailureListener(e -> showError("Loading organization members", e));
-    }
-
-    /** Profile lookups are optional; if the existing /users rules deny them,
-     *  member UIDs remain visible. Never require broad public profile access. */
-    private void lookupMemberName(MemberItem member) {
-        db.collection("users").document(member.uid).get()
-                .addOnSuccessListener(doc -> {
-                    if (!doc.exists()) return;
-                    String first = doc.getString("firstName");
-                    String last = doc.getString("lastName");
-                    String fullName = ((first == null ? "" : first) + " " +
-                            (last == null ? "" : last)).trim();
-                    if (!fullName.isEmpty()) {
-                        member.displayName = fullName;
-                        renderMembers();
-                    }
-                });
     }
 
     private void renderRoles() {
