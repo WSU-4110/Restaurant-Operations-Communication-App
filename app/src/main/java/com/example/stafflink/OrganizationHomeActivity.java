@@ -6,6 +6,7 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -56,7 +57,15 @@ public class OrganizationHomeActivity extends AppCompatActivity {
         TextView organizationNameTitle = findViewById(R.id.organizationNameTitle);
         organizationNameTitle.setText(organizationName);
 
-        loadJoinCode();
+        Button manageRolesButton = findViewById(R.id.manageRolesButton);
+        manageRolesButton.setVisibility(View.GONE);
+        manageRolesButton.setOnClickListener(v -> {
+            Intent intent = new Intent(this, ManageRolesActivity.class);
+            intent.putExtra("organizationId", organizationId);
+            startActivity(intent);
+        });
+
+        syncMemberDisplayName();
 
         Button generalButton = findViewById(R.id.generalButton);
 
@@ -74,62 +83,112 @@ public class OrganizationHomeActivity extends AppCompatActivity {
 
     }
 
-    private void loadJoinCode() {
+    private void syncMemberDisplayName() {
         FirebaseUser currentUser = auth.getCurrentUser();
-
         if (currentUser == null) {
+            return;
+        }
+
+        String uid = currentUser.getUid();
+        db.collection("users").document(uid).get()
+                .addOnSuccessListener(profile -> {
+                    if (!profile.exists()) {
+                        return;
+                    }
+
+                    String firstName = profile.getString("firstName");
+                    String lastName = profile.getString("lastName");
+                    String displayName = (
+                            (firstName == null ? "" : firstName.trim()) + " " +
+                            (lastName == null ? "" : lastName.trim())
+                    ).trim();
+                    displayName = displayName.replaceAll("\\s+", " ");
+
+                    if (displayName.isEmpty() || displayName.length() > 100) {
+                        Log.w("StaffLink", "Profile name is missing or too long");
+                        return;
+                    }
+
+                    final String nameToSave = displayName;
+                    db.collection("organizations")
+                            .document(organizationId)
+                            .collection("members")
+                            .document(uid)
+                            .get()
+                            .addOnSuccessListener(membership -> {
+                                if (!membership.exists()) {
+                                    return;
+                                }
+                                if (nameToSave.equals(membership.getString("displayName"))) {
+                                    return; // Avoid unnecessary writes on every visit.
+                                }
+                                membership.getReference().update("displayName", nameToSave)
+                                        .addOnFailureListener(error -> Log.w(
+                                                "StaffLink", "Unable to sync member display name", error));
+                            })
+                            .addOnFailureListener(error -> Log.w(
+                                    "StaffLink", "Unable to read membership for display name", error));
+                })
+                .addOnFailureListener(error -> Log.w(
+                        "StaffLink", "Unable to read own user profile", error));
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (db != null && organizationId != null) loadJoinCode();
+    }
+
+
+    private void loadJoinCode() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) {
             finish();
             return;
         }
 
-        db.collection("organizations")
-                .document(organizationId)
-                .get()
-                .addOnSuccessListener(document -> {
+        findViewById(R.id.manageRolesButton).setVisibility(View.GONE);
+        findViewById(R.id.joinCodeSection).setVisibility(View.GONE);
 
-                    if (!document.exists()) {
-                        return;
-                    }
-
-                    String ownerId = document.getString("ownerId");
-                    String joinCode = document.getString("joinCode");
-
-                    if (currentUser.getUid().equals(ownerId)
-                            && joinCode != null) {
-
-                        LinearLayout joinCodeSection =
-                                findViewById(R.id.joinCodeSection);
-
-                        TextView joinCodeText =
-                                findViewById(R.id.joinCodeText);
-
-                        Button copyJoinCodeButton =
-                                findViewById(R.id.copyJoinCodeButton);
-
-                        joinCodeText.setText(joinCode);
-                        joinCodeSection.setVisibility(View.VISIBLE);
-
-                        copyJoinCodeButton.setOnClickListener(v -> {
-
-                            ClipboardManager clipboard =
-                                    (ClipboardManager) getSystemService(
-                                            Context.CLIPBOARD_SERVICE);
-
-                            ClipData clip = ClipData.newPlainText(
-                                    "StaffLink Join Code", joinCode);
-
-                            clipboard.setPrimaryClip(clip);
-
-                            Toast.makeText(this,
-                                    "Join code copied!",
-                                    Toast.LENGTH_SHORT).show();
-                        });
+        db.collection("organizations").document(organizationId).get()
+                .addOnSuccessListener(organization -> {
+                    if (!organization.exists()) return;
+                    String ownerId = organization.getString("ownerId");
+                    String joinCode = organization.getString("joinCode");
+                    if (user.getUid().equals(ownerId)) {
+                        showAdminControls(joinCode);
+                    } else {
+                        db.collection("organizations").document(organizationId)
+                                .collection("members").document(user.getUid()).get()
+                                .addOnSuccessListener(member -> {
+                                    if (member.exists() && "manager".equals(member.getString("role"))) {
+                                        showAdminControls(joinCode);
+                                    }
+                                })
+                                .addOnFailureListener(error -> Log.w("StaffLink", "Could not verify manager", error));
                     }
                 })
-                .addOnFailureListener(e -> {
-                    Toast.makeText(this,
-                            "Error loading organization: " + e.getMessage(),
-                            Toast.LENGTH_LONG).show();
-                });
+                .addOnFailureListener(error -> Toast.makeText(this,
+                        "Error loading organization: " + error.getMessage(),
+                        Toast.LENGTH_LONG).show());
+    }
+
+    private void showAdminControls(String joinCode) {
+        findViewById(R.id.manageRolesButton).setVisibility(View.VISIBLE);
+        if (joinCode == null || joinCode.trim().isEmpty()) return;
+
+        LinearLayout joinCodeSection = findViewById(R.id.joinCodeSection);
+        TextView joinCodeText = findViewById(R.id.joinCodeText);
+        Button copyJoinCodeButton = findViewById(R.id.copyJoinCodeButton);
+        joinCodeText.setText(joinCode);
+        joinCodeSection.setVisibility(View.VISIBLE);
+        copyJoinCodeButton.setOnClickListener(v -> {
+            ClipboardManager clipboard = (ClipboardManager)
+                    getSystemService(Context.CLIPBOARD_SERVICE);
+            if (clipboard != null) {
+                clipboard.setPrimaryClip(ClipData.newPlainText("StaffLink Join Code", joinCode));
+                Toast.makeText(this, "Join code copied!", Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 }
