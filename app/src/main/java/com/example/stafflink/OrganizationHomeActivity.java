@@ -56,6 +56,15 @@ public class OrganizationHomeActivity extends AppCompatActivity {
         TextView organizationNameTitle = findViewById(R.id.organizationNameTitle);
         organizationNameTitle.setText(organizationName);
 
+        // Only the organization owner will see this button after loadJoinCode().
+        Button manageRolesButton = findViewById(R.id.manageRolesButton);
+        manageRolesButton.setVisibility(View.GONE);
+        manageRolesButton.setOnClickListener(v -> {
+            Intent intent = new Intent(this, ManageRolesActivity.class);
+            intent.putExtra("organizationId", organizationId);
+            startActivity(intent);
+        });
+
         loadJoinCode();
 
         Button generalButton = findViewById(R.id.generalButton);
@@ -93,9 +102,11 @@ public class OrganizationHomeActivity extends AppCompatActivity {
 
                     String ownerId = document.getString("ownerId");
                     String joinCode = document.getString("joinCode");
+                    boolean isOwner = currentUser.getUid().equals(ownerId);
+                    findViewById(R.id.manageRolesButton)
+                            .setVisibility(isOwner ? View.VISIBLE : View.GONE);
 
-                    if (currentUser.getUid().equals(ownerId)
-                            && joinCode != null) {
+                    if (isOwner && joinCode != null) {
 
                         LinearLayout joinCodeSection =
                                 findViewById(R.id.joinCodeSection);
