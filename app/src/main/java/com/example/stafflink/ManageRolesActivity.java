@@ -204,7 +204,7 @@ public class ManageRolesActivity extends AppCompatActivity {
     private void renderRoles() {
         rolesContainer.removeAllViews();
         if (roles.isEmpty()) {
-            addLabel(rolesContainer, "No job roles yet. Create a Server, Bartender, or Host role.");
+            addLabel(rolesContainer, "No job roles yet. Create a new role.");
         }
         for (RoleItem role : roles) {
             Button roleButton = new Button(this);

@@ -2,8 +2,8 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
-    <color name="background">#F7F7F5</color>
-    <color name="stafflink_1">#52745A</color>
-    <color name="stafflink_2">#BC6B4F</color>
+    <color name="background">#FFF0DB</color>
+    <color name="stafflink_1">#298C80</color>
+    <color name="stafflink_2">#EAF3F2</color>
 
 </resources>
