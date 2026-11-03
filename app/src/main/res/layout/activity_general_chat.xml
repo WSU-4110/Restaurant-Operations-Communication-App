@@ -6,7 +6,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#12B5CE">
+    android:background="@color/stafflink_1">
 
     <TextView
         android:id="@+id/chatTitle"
@@ -55,7 +55,8 @@
             android:id="@+id/sendButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Send" />
+            android:text="Send"
+            android:backgroundTint="@color/stafflink_1" />
 
     </LinearLayout>
 
