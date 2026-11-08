@@ -81,6 +81,21 @@ public class OrganizationHomeActivity extends AppCompatActivity {
             startActivity(intent);
         });
 
+        Button tasksButton = findViewById(R.id.tasksButton);
+
+        tasksButton.setOnClickListener(v -> {
+            Intent intent = new Intent(
+                    OrganizationHomeActivity.this,
+                    TaskCompletionActivity.class
+            );
+
+            intent.putExtra("organizationId", organizationId);
+            intent.putExtra("organizationName", organizationName);
+
+            startActivity(intent);
+        });
+
+
     }
 
     private void syncMemberDisplayName() {

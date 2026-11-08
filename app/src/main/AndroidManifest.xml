@@ -49,6 +49,9 @@
             android:name=".ManageRolesActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".TaskCompletionActivity"
+            android:exported="false" />
     </application>
 
 </manifest>
