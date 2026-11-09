@@ -27,6 +27,7 @@ import java.util.Set;
 public class ManageRolesActivity extends AppCompatActivity {
 
     private FirebaseFirestore db;
+    private RoleManagementFacade roleFacade;
     private String organizationId;
     private String ownerId;
     private String userId;
@@ -84,6 +85,10 @@ public class ManageRolesActivity extends AppCompatActivity {
 
         userId = user.getUid();
         db = FirebaseFirestore.getInstance();
+        roleFacade = new RoleManagementFacade(
+                new OrganizationPermissionService(db),
+                new RoleRepository(db)
+        );
         rolesContainer = findViewById(R.id.rolesContainer);
         membersContainer = findViewById(R.id.membersContainer);
         statusText = findViewById(R.id.rolesStatusText);
@@ -339,35 +344,53 @@ public class ManageRolesActivity extends AppCompatActivity {
             Button saveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
             saveButton.setOnClickListener(v -> {
                 String newName = name.getText().toString().trim().replaceAll("\\s+", " ");
-                if (newName.isEmpty()) {
-                    name.setError("Enter a name");
-                    return;
+                // Existing role editing is unchanged. Only role creation uses the Facade.
+                if (existing != null) {
+                    if (newName.isEmpty()) {
+                        name.setError("Enter a name");
+                        return;
+                    }
+                    if (duplicateName(newName, existing.id)) {
+                        name.setError("Role name already exists or is reserved");
+                        return;
+                    }
                 }
-                if (duplicateName(newName, existing == null ? "" : existing.id)) {
-                    name.setError("Role name already exists or is reserved");
-                    return;
-                }
+
                 saveButton.setEnabled(false);
-                Map<String, Object> newPermissions = permissions(viewChat.isChecked(),
-                        viewChat.isChecked() && sendChat.isChecked());
                 if (existing == null) {
-                    Map<String, Object> data = new HashMap<>();
-                    data.put("name", newName);
-                    data.put("createdBy", userId);
-                    data.put("createdAt", FieldValue.serverTimestamp());
-                    data.put("archived", false);
-                    data.put("permissions", newPermissions);
-                    rolesRef().add(data)
-                            .addOnSuccessListener(reference -> {
-                                dialog.dismiss();
-                                Toast.makeText(this, "Role created", Toast.LENGTH_SHORT).show();
-                                loadRoles();
-                            })
-                            .addOnFailureListener(e -> {
-                                saveButton.setEnabled(true);
-                                showError("Creating role", e);
-                            });
+                    roleFacade.createRole(
+                            organizationId,
+                            userId,
+                            newName,
+                            viewChat.isChecked(),
+                            sendChat.isChecked(),
+                            new RoleManagementFacade.RoleCreationCallback() {
+                                @Override
+                                public void onSuccess() {
+                                    dialog.dismiss();
+                                    Toast.makeText(ManageRolesActivity.this,
+                                            "Role created", Toast.LENGTH_SHORT).show();
+                                    loadRoles();
+                                }
+
+                                @Override
+                                public void onFailure(String error) {
+                                    saveButton.setEnabled(true);
+                                    if (error.equals("Enter a name")
+                                            || error.equals("Role name must be 40 characters or less")
+                                            || error.equals("Role name already exists or is reserved")) {
+                                        name.setError(error);
+                                    } else {
+                                        Toast.makeText(ManageRolesActivity.this,
+                                                "Creating role failed: " + error,
+                                                Toast.LENGTH_LONG).show();
+                                    }
+                                }
+                            }
+                    );
                 } else {
+                    Map<String, Object> newPermissions = permissions(viewChat.isChecked(),
+                            viewChat.isChecked() && sendChat.isChecked());
                     Map<String, Object> updates = new HashMap<>();
                     updates.put("name", newName);
                     updates.put("permissions", newPermissions);
