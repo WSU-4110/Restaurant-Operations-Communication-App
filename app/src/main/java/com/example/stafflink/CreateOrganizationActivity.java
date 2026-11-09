@@ -25,6 +25,8 @@ public class CreateOrganizationActivity extends AppCompatActivity {
         organizationNameInput = findViewById(R.id.organizationNameInput);
         createOrganizationButton = findViewById(R.id.createOrganizationButton);
 
+        organizationFacade = new OrganizationFacade();
+
         createOrganizationButton.setOnClickListener(v -> {
             createOrganization();
         });

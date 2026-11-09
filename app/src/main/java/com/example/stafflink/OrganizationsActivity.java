@@ -16,15 +16,10 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
-import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.firestore.DocumentSnapshot;
-import com.google.firebase.firestore.FirebaseFirestore;
 
 public class OrganizationsActivity extends AppCompatActivity {
 
-    private FirebaseAuth auth;
-    private FirebaseFirestore db;
+    private OrganizationFacade organizationFacade;
 
     private LinearLayout organizationsContainer;
     private ScrollView organizationsScrollView;
@@ -43,8 +38,7 @@ public class OrganizationsActivity extends AppCompatActivity {
             return insets;
         });
 
-        auth = FirebaseAuth.getInstance();
-        db = FirebaseFirestore.getInstance();
+        organizationFacade = new OrganizationFacade();
 
         organizationsContainer = findViewById(R.id.organizationsContainer);
         organizationsScrollView = findViewById(R.id.organizationsScrollView);
@@ -87,7 +81,7 @@ public class OrganizationsActivity extends AppCompatActivity {
                 .setMessage("You will need to log in again to access your organizations.")
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Log Out", (dialog, which) -> {
-                    auth.signOut();
+                    organizationFacade.signOut();
 
                     Intent intent = new Intent(this, MainActivity.class);
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
@@ -103,92 +97,38 @@ public class OrganizationsActivity extends AppCompatActivity {
         loadOrganizations();
     }
 
-
     private void loadOrganizations() {
-        FirebaseUser currentUser = auth.getCurrentUser();
-
-        if (currentUser == null) {
-            return;
-        }
-
         organizationsContainer.removeAllViews();
         noOrganizationsText.setVisibility(View.GONE);
         organizationHelpText.setVisibility(View.GONE);
         organizationsScrollView.setVisibility(View.GONE);
 
-        String userId = currentUser.getUid();
+        organizationFacade.loadOrganizations(
+                new OrganizationFacade.LoadOrganizationsCallback() {
+                    @Override
+                    public void onOrganizationLoaded(
+                            String organizationId,
+                            String organizationName) {
 
-        db.collection("organizations")
-                .whereEqualTo("ownerId", userId)
-                .get()
-                .addOnSuccessListener(querySnapshot -> {
-
-                    for (DocumentSnapshot document : querySnapshot.getDocuments()) {
                         addOrganizationToList(
-                                document.getId(),
-                                document.getString("name")
+                                organizationId,
+                                organizationName
                         );
                     }
 
-                    db.collection("users")
-                            .document(userId)
-                            .collection("organizations")
-                            .get()
-                            .addOnSuccessListener(joinedSnapshot -> {
+                    @Override
+                    public void onComplete() {
+                        updateOrganizationVisibility();
+                    }
 
-                                if (joinedSnapshot.isEmpty()) {
-                                    updateOrganizationVisibility();
-                                    return;
-                                }
-
-                                final int[] remaining = {
-                                        joinedSnapshot.size()
-                                };
-
-                                for (DocumentSnapshot membership :
-                                        joinedSnapshot.getDocuments()) {
-
-                                    String organizationId = membership.getId();
-
-                                    db.collection("organizations")
-                                            .document(organizationId)
-                                            .get()
-                                            .addOnSuccessListener(document -> {
-                                                if (document.exists()) {
-                                                    addOrganizationToList(
-                                                            organizationId,
-                                                            document.getString("name")
-                                                    );
-                                                }
-
-                                                remaining[0]--;
-                                                if (remaining[0] == 0) {
-                                                    updateOrganizationVisibility();
-                                                }
-                                            })
-                                            .addOnFailureListener(e -> {
-                                                remaining[0]--;
-                                                if (remaining[0] == 0) {
-                                                    updateOrganizationVisibility();
-                                                }
-                                                Toast.makeText(this,
-                                                        "Error loading joined organization",
-                                                        Toast.LENGTH_SHORT).show();
-                                            });
-                                }
-                            })
-                            .addOnFailureListener(e -> {
-                                updateOrganizationVisibility();
-                                Toast.makeText(this,
-                                        "Error loading memberships: " + e.getMessage(),
-                                        Toast.LENGTH_LONG).show();
-                            });
-                })
-                .addOnFailureListener(e -> {
-                    updateOrganizationVisibility();
-                    Toast.makeText(this,
-                            "Error loading organizations: " + e.getMessage(),
-                            Toast.LENGTH_LONG).show();
+                    @Override
+                    public void onError(String message) {
+                        Toast.makeText(
+                                OrganizationsActivity.this,
+                                message,
+                                Toast.LENGTH_LONG
+                        ).show();
+                    }
                 });
     }
 
