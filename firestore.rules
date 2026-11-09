@@ -1,0 +1,82 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function orgPath(org) { return /databases/$(database)/documents/organizations/$(org); }
+    function memberPath(org) { return /databases/$(database)/documents/organizations/$(org)/members/$(request.auth.uid); }
+    function owner(org) { return signedIn() && get(orgPath(org)).data.ownerId == request.auth.uid; }
+    function member(org) { return signedIn() && exists(memberPath(org)); }
+    function admin(org) { return owner(org) || (member(org) && get(memberPath(org)).data.role == 'manager'); }
+    function roleData(org, role) { return get(/databases/$(database)/documents/organizations/$(org)/roles/$(role)).data; }
+    function permission(data, key) { return data.get('permissions', {}).get(key, true) == true; }
+    function viewRole(org, role) {
+      let data = roleData(org, role);
+      return signedIn() && data.get('archived', false) == false
+        && (admin(org) || (member(org) && role in get(memberPath(org)).data.get('roleIds', [])
+          && permission(data, 'viewChat')));
+    }
+    function sendRole(org, role) {
+      return viewRole(org, role) && (admin(org) || permission(roleData(org, role), 'sendChat'));
+    }
+    function validMessage() {
+      let data = request.resource.data;
+      return data.keys().hasOnly(['text', 'senderId', 'senderName', 'timestamp'])
+        && data.senderId == request.auth.uid && data.text is string
+        && data.text.size() > 0 && data.text.size() <= 4000
+        && data.senderName is string && data.senderName.size() > 0
+        && data.senderName.size() <= 100 && data.timestamp == request.time;
+    }
+    match /users/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+      match /organizations/{org} {
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow create: if signedIn() && request.auth.uid == uid
+          && existsAfter(/databases/$(database)/documents/organizations/$(org)/members/$(uid));
+      }
+    }
+    match /joinCodes/{code} {
+      allow get: if signedIn();
+      allow create: if signedIn() && code.matches('[A-Z0-9]{8}')
+        && getAfter(orgPath(request.resource.data.organizationId)).data.ownerId == request.auth.uid;
+    }
+    match /organizations/{org} {
+      allow read: if signedIn() && (resource.data.ownerId == request.auth.uid || member(org));
+      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
+      match /members/{uid} {
+        allow read: if signedIn() && (request.auth.uid == uid || admin(org));
+        allow create: if signedIn() && request.auth.uid == uid
+          && ((getAfter(orgPath(org)).data.ownerId == uid && request.resource.data.role == 'owner'
+               && request.resource.data.keys().hasOnly(['role', 'joinedAt']))
+            || (request.resource.data.role == 'employee'
+              && request.resource.data.keys().hasOnly(['role', 'joinedAt', 'joinCode'])
+              && get(/databases/$(database)/documents/joinCodes/$(request.resource.data.joinCode)).data.organizationId == org));
+        allow update: if signedIn() && (
+          (request.auth.uid == uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName'])
+            && request.resource.data.displayName is string && request.resource.data.displayName.size() <= 100)
+          || (admin(org) && uid != get(orgPath(org)).data.ownerId
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roleIds', 'role'])
+            && request.resource.data.get('roleIds', []) is list
+            && request.resource.data.get('roleIds', []).size() <= 20
+            && request.resource.data.role in ['employee', 'manager']
+            && (owner(org) || request.resource.data.role == resource.data.role)));
+      }
+      match /roles/{role} {
+        allow read: if owner(org) || member(org);
+        allow create, update: if admin(org)
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 40
+          && request.resource.data.archived is bool
+          && request.resource.data.permissions.viewChat is bool
+          && request.resource.data.permissions.sendChat is bool;
+        match /messages/{message} {
+          allow read: if viewRole(org, role);
+          allow create: if sendRole(org, role) && validMessage();
+        }
+      }
+      match /generalMessages/{message} {
+        allow read: if owner(org) || member(org);
+        allow create: if (owner(org) || member(org)) && validMessage();
+      }
+    }
+  }
+}
