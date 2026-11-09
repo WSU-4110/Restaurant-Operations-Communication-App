@@ -26,9 +26,10 @@ import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
-public class GeneralChatActivity extends AppCompatActivity {
+public class GeneralChatActivity extends AppCompatActivity implements MessageObserver {
 
     private EditText messageInput;
     private Button sendButton;
@@ -37,6 +38,7 @@ public class GeneralChatActivity extends AppCompatActivity {
     private CollectionReference messages;
     private ListenerRegistration messageListener;
     private FirebaseUser currentUser;
+    private ChatMessageRepository chatRepository;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -88,7 +90,9 @@ public class GeneralChatActivity extends AppCompatActivity {
 
         sendButton.setOnClickListener(v -> sendMessage());
 
-        listenForMessages();
+        chatRepository = new ChatMessageRepository(messages);
+        chatRepository.addObserver(this);
+        chatRepository.startListening();
     }
 
     private void sendMessage() {
@@ -192,9 +196,68 @@ public class GeneralChatActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        if (chatRepository != null) {
+            chatRepository.removeObserver(this);
+            chatRepository.stopListening();
+        }
+
         if (messageListener != null) {
             messageListener.remove();
         }
+
         super.onDestroy();
+    }
+
+    @Override
+    public void onMessagesUpdated(List<ChatMessage> messages) {
+        runOnUiThread(() -> {
+            messagesContainer.removeAllViews();
+
+            for (ChatMessage message : messages) {
+                TextView messageView = new TextView(this);
+
+                String sender = message.getSenderName();
+                if (sender == null) {
+                    sender = "Member";
+                }
+
+                messageView.setText(
+                        sender + "\n" + message.getText()
+                );
+
+                messageView.setTextSize(16);
+                messageView.setTextColor(Color.BLACK);
+                messageView.setBackgroundColor(Color.WHITE);
+
+                int padding = dp(12);
+                messageView.setPadding(
+                        padding, padding, padding, padding
+                );
+
+                LinearLayout.LayoutParams params =
+                        new LinearLayout.LayoutParams(
+                                LinearLayout.LayoutParams.MATCH_PARENT,
+                                LinearLayout.LayoutParams.WRAP_CONTENT
+                        );
+
+                params.bottomMargin = dp(8);
+
+                messagesContainer.addView(messageView, params);
+            }
+
+            messagesScrollView.post(() ->
+                    messagesScrollView.fullScroll(View.FOCUS_DOWN)
+            );
+        });
+    }
+    @Override
+    public void onMessageError(Exception error) {
+        runOnUiThread(() -> {
+            Toast.makeText(
+                    this,
+                    "Error loading chat: " + error.getMessage(),
+                    Toast.LENGTH_LONG
+            ).show();
+        });
     }
 }
