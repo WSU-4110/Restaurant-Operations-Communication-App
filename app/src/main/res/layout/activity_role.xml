@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/background"
+    tools:context=".RoleActivity">
+
+    <TextView
+        android:id="@+id/roleTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="70dp"
+        android:layout_marginStart="24dp"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="40dp"
+        android:text="Role"
+        android:textColor="@color/stafflink_1"
+        android:textSize="28sp"
+        android:textStyle="bold"
+        android:textAlignment="center" />
+
+    <Button
+        android:id="@+id/roleChatButton"
+        android:layout_width="match_parent"
+        android:layout_height="72dp"
+        android:layout_marginStart="24dp"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="16dp"
+        android:text="Chat"
+        android:textSize="20sp"
+        android:textAllCaps="false"
+        android:textColor="@android:color/black"
+        android:background="@drawable/organization_button_background"
+        app:backgroundTint="@null" />
+
+    <Button
+        android:id="@+id/roleCreateTaskButton"
+        android:layout_width="match_parent"
+        android:layout_height="72dp"
+        android:layout_marginStart="24dp"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="16dp"
+        android:text="Create Task"
+        android:textSize="20sp"
+        android:textAllCaps="false"
+        android:textColor="@android:color/black"
+        android:background="@drawable/organization_button_background"
+        app:backgroundTint="@null" />
+
+</LinearLayout>

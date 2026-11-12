@@ -64,13 +64,6 @@
                     app:backgroundTint="@null"
                     android:layout_marginBottom="16dp" />
 
-                <LinearLayout
-                    android:id="@+id/roleChatsContainer"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:paddingBottom="16dp" />
-
                 <Button
                     android:id="@+id/activityButton"
                     android:layout_width="match_parent"
@@ -106,7 +99,12 @@
                     android:background="@drawable/organization_button_background"
                     app:backgroundTint="@null" />
 
-                
+                <LinearLayout
+                    android:id="@+id/roleChatsContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+
                 <Button
                     android:id="@+id/manageRolesButton"
                     android:layout_width="match_parent"
@@ -118,19 +116,6 @@
                     android:textAllCaps="false"
                     android:textColor="@android:color/black"
                     android:textSize="20sp"
-                    app:backgroundTint="@null" />
-
-                <Button
-                    android:id="@+id/createTaskNavigationButton"
-                    android:layout_width="match_parent"
-                    android:layout_height="72dp"
-                    android:layout_marginTop="16dp"
-                    android:layout_marginBottom="16dp"
-                    android:text="Create Task"
-                    android:textSize="20sp"
-                    android:textAllCaps="false"
-                    android:textColor="@android:color/black"
-                    android:background="@drawable/organization_button_background"
                     app:backgroundTint="@null" />
 
             </LinearLayout>

@@ -4,6 +4,7 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -71,14 +72,6 @@ public class OrganizationHomeActivity extends AppCompatActivity {
 
         Button generalButton = findViewById(R.id.generalButton);
         generalButton.setOnClickListener(v -> openChat(null));
-
-        Button createTaskButton = findViewById(R.id.createTaskNavigationButton);
-
-        createTaskButton.setOnClickListener(v -> {
-            Intent intent = new Intent(this, CreateTaskActivity.class);
-            intent.putExtra("organizationId", organizationId);
-            startActivity(intent);
-        });
     }
 
     private void syncMemberDisplayName() {
@@ -181,8 +174,16 @@ public class OrganizationHomeActivity extends AppCompatActivity {
 
             Button button = new Button(this);
             button.setAllCaps(false);
-            button.setText(role.getString("name") + " Chat");
-            button.setOnClickListener(v -> openChat(role.getId()));
+            button.setText(role.getString("name"));
+            button.setTextSize(20);
+            button.setTextColor(Color.BLACK);
+            button.setBackgroundResource(R.drawable.organization_button_background);
+            button.setBackgroundTintList(null);
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, dp(72));
+            params.topMargin = dp(16);
+            button.setLayoutParams(params);
+            button.setOnClickListener(v -> openRole(role.getId(), role.getString("name")));
             container.addView(button);
         }
 
@@ -192,6 +193,18 @@ public class OrganizationHomeActivity extends AppCompatActivity {
         }
     }
 
+    private void openRole(String roleId, String roleName) {
+        Intent intent = new Intent(this, RoleActivity.class);
+        intent.putExtra("organizationId", organizationId);
+        intent.putExtra("organizationName", organizationName);
+        intent.putExtra("roleId", roleId);
+        intent.putExtra("roleName", roleName);
+        startActivity(intent);
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
+    }
     private void openChat(String roleId) {
         Intent intent = new Intent(this, GeneralChatActivity.class);
         intent.putExtra("organizationId", organizationId);
