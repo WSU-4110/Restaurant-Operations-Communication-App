@@ -80,6 +80,13 @@ public class OrganizationHomeActivity extends AppCompatActivity {
 
             startActivity(intent);
         });
+        Button createTaskButton = findViewById(R.id.createTaskNavigationButton);
+
+        createTaskButton.setOnClickListener(v -> {
+            Intent intent = new Intent(this, CreateTaskActivity.class);
+            intent.putExtra("organizationId", organizationId);
+            startActivity(intent);
+        });
 
     }
 
