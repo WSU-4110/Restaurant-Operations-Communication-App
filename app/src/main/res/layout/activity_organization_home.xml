@@ -120,6 +120,19 @@
                     android:textSize="20sp"
                     app:backgroundTint="@null" />
 
+                <Button
+                    android:id="@+id/createTaskNavigationButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="72dp"
+                    android:layout_marginTop="16dp"
+                    android:layout_marginBottom="16dp"
+                    android:text="Create Task"
+                    android:textSize="20sp"
+                    android:textAllCaps="false"
+                    android:textColor="@android:color/black"
+                    android:background="@drawable/organization_button_background"
+                    app:backgroundTint="@null" />
+
             </LinearLayout>
 
 

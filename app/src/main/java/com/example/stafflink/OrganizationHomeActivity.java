@@ -71,6 +71,14 @@ public class OrganizationHomeActivity extends AppCompatActivity {
 
         Button generalButton = findViewById(R.id.generalButton);
         generalButton.setOnClickListener(v -> openChat(null));
+
+        Button createTaskButton = findViewById(R.id.createTaskNavigationButton);
+
+        createTaskButton.setOnClickListener(v -> {
+            Intent intent = new Intent(this, CreateTaskActivity.class);
+            intent.putExtra("organizationId", organizationId);
+            startActivity(intent);
+        });
     }
 
     private void syncMemberDisplayName() {
