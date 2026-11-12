@@ -1,4 +1,3 @@
-
 package com.example.stafflink;
 
 import android.content.ClipData;
@@ -21,7 +20,10 @@ import androidx.core.view.WindowInsetsCompat;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.QuerySnapshot;
 
 public class OrganizationHomeActivity extends AppCompatActivity {
 
@@ -68,19 +70,7 @@ public class OrganizationHomeActivity extends AppCompatActivity {
         syncMemberDisplayName();
 
         Button generalButton = findViewById(R.id.generalButton);
-
-        generalButton.setOnClickListener(v -> {
-            Intent intent = new Intent(
-                    OrganizationHomeActivity.this,
-                    GeneralChatActivity.class
-            );
-
-            intent.putExtra("organizationId", organizationId);
-            intent.putExtra("organizationName", organizationName);
-
-            startActivity(intent);
-        });
-
+        generalButton.setOnClickListener(v -> openChat(null));
     }
 
     private void syncMemberDisplayName() {
@@ -120,7 +110,7 @@ public class OrganizationHomeActivity extends AppCompatActivity {
                                     return;
                                 }
                                 if (nameToSave.equals(membership.getString("displayName"))) {
-                                    return; // Avoid unnecessary writes on every visit.
+                                    return;
                                 }
                                 membership.getReference().update("displayName", nameToSave)
                                         .addOnFailureListener(error -> Log.w(
@@ -136,9 +126,71 @@ public class OrganizationHomeActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (db != null && organizationId != null) loadJoinCode();
+        if (db != null && organizationId != null) {
+            loadJoinCode();
+            loadRoleChats();
+        }
     }
 
+    private void loadRoleChats() {
+        LinearLayout container = findViewById(R.id.roleChatsContainer);
+        container.removeAllViews();
+        TextView status = new TextView(this);
+        status.setText("Loading role chats...");
+        container.addView(status);
+
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) {
+            return;
+        }
+
+        DocumentReference organization = db.collection("organizations").document(organizationId);
+        organization.get()
+                .addOnSuccessListener(organizationSnapshot -> {
+                    organization.collection("members").document(user.getUid()).get()
+                            .addOnSuccessListener(member -> {
+                                RoleChatAccess access = new RoleChatAccess(user.getUid(),
+                                        organizationSnapshot.getString("ownerId"), member.getData());
+                                organization.collection("roles").get()
+                                        .addOnSuccessListener(roles -> renderRoleChats(
+                                                container, status, roles, access))
+                                        .addOnFailureListener(error -> status.setText(
+                                                "Unable to load role chats. Reopen this organization to retry."));
+                            })
+                            .addOnFailureListener(error -> status.setText(
+                                    "Unable to verify chat access."));
+                })
+                .addOnFailureListener(error -> status.setText("Unable to load organization."));
+    }
+
+    private void renderRoleChats(LinearLayout container, TextView status,
+                                 QuerySnapshot roles, RoleChatAccess access) {
+        container.removeAllViews();
+        for (DocumentSnapshot role : roles) {
+            if (!access.canView(role.getId(), role.getData())) {
+                continue;
+            }
+
+            Button button = new Button(this);
+            button.setAllCaps(false);
+            button.setText(role.getString("name") + " Chat");
+            button.setOnClickListener(v -> openChat(role.getId()));
+            container.addView(button);
+        }
+
+        if (container.getChildCount() == 0) {
+            status.setText("No role chats available. Ask a manager to assign a role and enable chat access.");
+            container.addView(status);
+        }
+    }
+
+    private void openChat(String roleId) {
+        Intent intent = new Intent(this, GeneralChatActivity.class);
+        intent.putExtra("organizationId", organizationId);
+        intent.putExtra("organizationName", organizationName);
+        intent.putExtra("roleId", roleId);
+        startActivity(intent);
+    }
 
     private void loadJoinCode() {
         FirebaseUser user = auth.getCurrentUser();
@@ -152,7 +204,9 @@ public class OrganizationHomeActivity extends AppCompatActivity {
 
         db.collection("organizations").document(organizationId).get()
                 .addOnSuccessListener(organization -> {
-                    if (!organization.exists()) return;
+                    if (!organization.exists()) {
+                        return;
+                    }
                     String ownerId = organization.getString("ownerId");
                     String joinCode = organization.getString("joinCode");
                     if (user.getUid().equals(ownerId)) {
@@ -175,7 +229,9 @@ public class OrganizationHomeActivity extends AppCompatActivity {
 
     private void showAdminControls(String joinCode) {
         findViewById(R.id.manageRolesButton).setVisibility(View.VISIBLE);
-        if (joinCode == null || joinCode.trim().isEmpty()) return;
+        if (joinCode == null || joinCode.trim().isEmpty()) {
+            return;
+        }
 
         LinearLayout joinCodeSection = findViewById(R.id.joinCodeSection);
         TextView joinCodeText = findViewById(R.id.joinCodeText);
