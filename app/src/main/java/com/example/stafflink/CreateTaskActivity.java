@@ -220,20 +220,18 @@ public class CreateTaskActivity extends AppCompatActivity {
                           String priority, String selectedRoleId,
                           String creatorId) {
 
-        Map<String, Object> task = new HashMap<>();
-
-        task.put("title", title);
-        task.put("description", description);
-        task.put("priority", priority);
-        task.put("assignedRoleId", selectedRoleId);
-        task.put("createdBy", creatorId);
-        task.put("createdAt", FieldValue.serverTimestamp());
-        task.put("status", "open");
+        Task task = new Task.Builder()
+                .setTitle(title)
+                .setDescription(description)
+                .setPriority(priority)
+                .setAssignedRoleId(selectedRoleId)
+                .setCreatedBy(creatorId)
+                .build();
 
         db.collection("organizations")
                 .document(organizationId)
                 .collection("tasks")
-                .add(task)
+                .add(task.toMap())
                 .addOnSuccessListener(documentReference -> {
                     Toast.makeText(this, "Task created successfully!",
                             Toast.LENGTH_SHORT).show();
