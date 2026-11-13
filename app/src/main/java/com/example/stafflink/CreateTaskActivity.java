@@ -220,16 +220,43 @@ public class CreateTaskActivity extends AppCompatActivity {
                           String priority, String selectedRoleId,
                           String creatorId) {
 
+        db.collection("users")
+                .document(creatorId)
+                .get()
+                .addOnSuccessListener(profile -> {
+                    String first = profile.getString("firstName");
+                    String last = profile.getString("lastName");
+                    String name = ((first == null ? "" : first.trim()) + " "
+                            + (last == null ? "" : last.trim())).trim();
+                    if (name.isEmpty()) {
+                        name = "Member";
+                    }
+                    if (name.length() > 100) {
+                        name = name.substring(0, 100);
+                    }
+                    writeTask(title, description, priority, selectedRoleId, creatorId, name);
+                })
+                .addOnFailureListener(e ->
+                        writeTask(title, description, priority, selectedRoleId, creatorId, "Member"));
+    }
+
+    private void writeTask(String title, String description,
+                           String priority, String selectedRoleId,
+                           String creatorId, String creatorName) {
+
         Task task = new Task.Builder()
                 .setTitle(title)
                 .setDescription(description)
                 .setPriority(priority)
                 .setAssignedRoleId(selectedRoleId)
                 .setCreatedBy(creatorId)
+                .setCreatedByName(creatorName)
                 .build();
 
         db.collection("organizations")
                 .document(organizationId)
+                .collection("roles")
+                .document(selectedRoleId)
                 .collection("tasks")
                 .add(task.toMap())
                 .addOnSuccessListener(documentReference -> {
@@ -242,6 +269,4 @@ public class CreateTaskActivity extends AppCompatActivity {
                             Toast.LENGTH_LONG).show();
                 });
     }
-
-
 }

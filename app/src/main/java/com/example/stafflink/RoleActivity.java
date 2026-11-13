@@ -58,5 +58,14 @@ public class RoleActivity extends AppCompatActivity {
             intent.putExtra("roleId", roleId);
             startActivity(intent);
         });
+
+        Button viewTasksButton = findViewById(R.id.roleViewTasksButton);
+        viewTasksButton.setOnClickListener(v -> {
+            Intent intent = new Intent(this, TaskListActivity.class);
+            intent.putExtra("organizationId", organizationId);
+            intent.putExtra("roleId", roleId);
+            intent.putExtra("roleName", roleName);
+            startActivity(intent);
+        });
     }
 }

@@ -137,7 +137,8 @@ public class OrganizationHomeActivity extends AppCompatActivity {
         LinearLayout container = findViewById(R.id.roleChatsContainer);
         container.removeAllViews();
         TextView status = new TextView(this);
-        status.setText("Loading role chats...");
+        status.setText("Loading role...");
+        status.setPadding(0, dp(16), 0, 0);
         container.addView(status);
 
         FirebaseUser user = auth.getCurrentUser();
@@ -156,10 +157,10 @@ public class OrganizationHomeActivity extends AppCompatActivity {
                                         .addOnSuccessListener(roles -> renderRoleChats(
                                                 container, status, roles, access))
                                         .addOnFailureListener(error -> status.setText(
-                                                "Unable to load role chats. Reopen this organization to retry."));
+                                                "Unable to load role. Reopen this organization to retry."));
                             })
                             .addOnFailureListener(error -> status.setText(
-                                    "Unable to verify chat access."));
+                                    "Unable to verify role access."));
                 })
                 .addOnFailureListener(error -> status.setText("Unable to load organization."));
     }
@@ -188,7 +189,7 @@ public class OrganizationHomeActivity extends AppCompatActivity {
         }
 
         if (container.getChildCount() == 0) {
-            status.setText("No role chats available. Ask a manager to assign a role and enable chat access.");
+            status.setText("No role assigned yet. Ask a manager to assign you one.");
             container.addView(status);
         }
     }

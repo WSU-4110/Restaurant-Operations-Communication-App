@@ -52,4 +52,18 @@
         android:background="@drawable/organization_button_background"
         app:backgroundTint="@null" />
 
+    <Button
+        android:id="@+id/roleViewTasksButton"
+        android:layout_width="match_parent"
+        android:layout_height="72dp"
+        android:layout_marginStart="24dp"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="16dp"
+        android:text="View Tasks"
+        android:textSize="20sp"
+        android:textAllCaps="false"
+        android:textColor="@android:color/black"
+        android:background="@drawable/organization_button_background"
+        app:backgroundTint="@null" />
+
 </LinearLayout>
