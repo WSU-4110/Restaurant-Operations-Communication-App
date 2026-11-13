@@ -69,8 +69,6 @@ public class MainActivity extends AppCompatActivity {
                         }
                     });
         });
-
-        //takes to signup page
         TextView signupText = findViewById(R.id.signupText);
         signupText.setOnClickListener(v -> {
             Intent intent = new Intent(MainActivity.this, SignUpActivity.class);

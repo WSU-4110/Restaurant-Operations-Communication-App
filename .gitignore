@@ -14,3 +14,5 @@
 .cxx
 local.properties
 .idea/
+*-debug.log
+.firebase/

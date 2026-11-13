@@ -1,4 +1,5 @@
 package com.example.stafflink;
+
 import android.os.Bundle;
 import android.text.InputFilter;
 import android.widget.Button;
@@ -8,14 +9,17 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.CollectionReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -90,13 +94,14 @@ public class ManageRolesActivity extends AppCompatActivity {
         createRoleButton = findViewById(R.id.createRoleButton);
         createRoleButton.setEnabled(false);
         createRoleButton.setOnClickListener(v -> showRoleDialog(null));
-
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        if (db != null) verifyAdminThenLoad();
+        if (db != null) {
+            verifyAdminThenLoad();
+        }
     }
 
     private void verifyAdminThenLoad() {
@@ -154,13 +159,15 @@ public class ManageRolesActivity extends AppCompatActivity {
         rolesRef().get().addOnSuccessListener(snapshot -> {
             roles.clear();
             for (DocumentSnapshot doc : snapshot.getDocuments()) {
-                if (Boolean.TRUE.equals(doc.getBoolean("archived"))) continue;
+                if (Boolean.TRUE.equals(doc.getBoolean("archived"))) {
+                    continue;
+                }
                 String name = doc.getString("name");
-                if (name == null || name.trim().isEmpty()) continue;
-
-                // Older role records have no permissions; preserve previous behavior.
+                if (name == null || name.trim().isEmpty()) {
+                    continue;
+                }
                 Object rawPermissions = doc.get("permissions");
-                Map<?, ?> permissions = rawPermissions instanceof Map
+                Map<?, ?> permissions = rawPermissions instanceof Map<?, ?>
                         ? (Map<?, ?>) rawPermissions : null;
                 boolean view = readPermission(permissions, "viewChat", true);
                 boolean send = readPermission(permissions, "sendChat", true);
@@ -173,7 +180,9 @@ public class ManageRolesActivity extends AppCompatActivity {
     }
 
     private boolean readPermission(Map<?, ?> values, String key, boolean fallback) {
-        if (values == null) return fallback;
+        if (values == null) {
+            return fallback;
+        }
         Object value = values.get(key);
         return value instanceof Boolean ? (Boolean) value : fallback;
     }
@@ -186,7 +195,9 @@ public class ManageRolesActivity extends AppCompatActivity {
                 Object raw = doc.get("roleIds");
                 if (raw instanceof List<?>) {
                     for (Object id : (List<?>) raw) {
-                        if (id instanceof String) ids.add((String) id);
+                        if (id instanceof String) {
+                            ids.add((String) id);
+                        }
                     }
                 }
                 String name = doc.getString("displayName");
@@ -285,11 +296,13 @@ public class ManageRolesActivity extends AppCompatActivity {
     }
 
     private boolean duplicateName(String proposedName, String excludingId) {
-        if (proposedName.equalsIgnoreCase("owner") || proposedName.equalsIgnoreCase("manager"))
+        if (proposedName.equalsIgnoreCase("owner") || proposedName.equalsIgnoreCase("manager")) {
             return true;
+        }
         for (RoleItem other : roles) {
-            if (!other.id.equals(excludingId) && other.name.equalsIgnoreCase(proposedName))
+            if (!other.id.equals(excludingId) && other.name.equalsIgnoreCase(proposedName)) {
                 return true;
+            }
         }
         return false;
     }
@@ -300,7 +313,9 @@ public class ManageRolesActivity extends AppCompatActivity {
         name.setSingleLine(true);
         name.setHint("Role name (e.g., Server)");
         name.setFilters(new InputFilter[]{new InputFilter.LengthFilter(40)});
-        if (existing != null) name.setText(existing.name);
+        if (existing != null) {
+            name.setText(existing.name);
+        }
         form.addView(name);
 
         CheckBox viewChat = new CheckBox(this);
@@ -315,13 +330,15 @@ public class ManageRolesActivity extends AppCompatActivity {
         form.addView(sendChat);
 
         viewChat.setOnCheckedChangeListener((button, checked) -> {
-            if (!checked) sendChat.setChecked(false);
+            if (!checked) {
+                sendChat.setChecked(false);
+            }
             sendChat.setEnabled(checked);
         });
 
         TextView note = new TextView(this);
-        note.setText("Chat restrictions will take effect when the role-specific chat "
-                + "screens and Firestore rules are implemented. Managers always have full chat access.");
+        note.setText("Assigned employees can open chats with View enabled. "
+                + "Send controls posting. Managers have full access to active role chats.");
         note.setPadding(0, dp(12), 0, 0);
         form.addView(note);
 
@@ -392,7 +409,7 @@ public class ManageRolesActivity extends AppCompatActivity {
         new AlertDialog.Builder(this)
                 .setTitle("Archive " + role.name + "?")
                 .setMessage("The role will disappear from active lists and members will lose "
-                        + "access to its future chat. Existing role IDs and any chat history "
+                        + "access to its chat. Existing role IDs and any chat history "
                         + "will be retained in Firestore.")
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Archive", (dialog, which) -> {
@@ -410,7 +427,9 @@ public class ManageRolesActivity extends AppCompatActivity {
     }
 
     private void showMemberDialog(MemberItem member) {
-        if (member.uid.equals(ownerId)) return;
+        if (member.uid.equals(ownerId)) {
+            return;
+        }
         LinearLayout form = formContainer();
         TextView hint = new TextView(this);
         hint.setText("Assign job roles to " + member.displayName);
@@ -428,7 +447,9 @@ public class ManageRolesActivity extends AppCompatActivity {
             form.addView(choice);
             roleBoxes.add(choice);
         }
-        if (roles.isEmpty()) addLabel(form, "No active job roles yet.");
+        if (roles.isEmpty()) {
+            addLabel(form, "No active job roles yet.");
+        }
 
         CheckBox managerBox = new CheckBox(this);
         managerBox.setText("Manager: access all chats, join code, and role management");
@@ -436,22 +457,29 @@ public class ManageRolesActivity extends AppCompatActivity {
         managerBox.setEnabled(currentUserIsOwner);
         managerBox.setPadding(0, dp(10), 0, 0);
         form.addView(managerBox);
-        if (!currentUserIsOwner) addLabel(form, "Only the organization owner can grant or remove Manager access.");
+        if (!currentUserIsOwner) {
+            addLabel(form, "Only the organization owner can grant or remove Manager access.");
+        }
 
         new AlertDialog.Builder(this)
                 .setTitle("Manage " + member.displayName)
                 .setView(scrollForm(form))
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Save", (dialog, which) -> {
-                    // Preserve inactive role IDs; never silently remove archived assignments.
                     Set<String> activeIds = new HashSet<>();
-                    for (RoleItem role : roles) activeIds.add(role.id);
+                    for (RoleItem role : roles) {
+                        activeIds.add(role.id);
+                    }
                     List<String> updated = new ArrayList<>();
                     for (String id : member.roleIds) {
-                        if (!activeIds.contains(id) && !updated.contains(id)) updated.add(id);
+                        if (!activeIds.contains(id) && !updated.contains(id)) {
+                            updated.add(id);
+                        }
                     }
                     for (CheckBox box : roleBoxes) {
-                        if (box.isChecked()) updated.add((String) box.getTag());
+                        if (box.isChecked()) {
+                            updated.add((String) box.getTag());
+                        }
                     }
                     if (updated.size() > 20) {
                         Toast.makeText(this, "A member can have at most 20 roles", Toast.LENGTH_LONG).show();
