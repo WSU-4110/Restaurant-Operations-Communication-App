@@ -254,35 +254,39 @@ service cloud.firestore {
           allow create: if canSendRoleChat(organizationId, roleId)
                         && validMessage();
         }
+
+        match /tasks/{taskId} {
+          allow read: if canAccessRole(organizationId, roleId);
+
+          allow create: if canAccessRole(organizationId, roleId)
+                        && request.resource.data.keys().hasAll([
+                             'title', 'description', 'priority', 'assignedRoleId',
+                             'createdBy', 'createdByName', 'createdAt', 'status'
+                           ])
+                        && request.resource.data.keys().hasOnly([
+                             'title', 'description', 'priority', 'assignedRoleId',
+                             'createdBy', 'createdByName', 'createdAt', 'status'
+                           ])
+                        && request.resource.data.title is string
+                        && request.resource.data.title.size() > 0
+                        && request.resource.data.title.size() <= 100
+                        && request.resource.data.description is string
+                        && request.resource.data.description.size() > 0
+                        && request.resource.data.description.size() <= 2000
+                        && request.resource.data.priority in ['Low', 'Medium', 'High']
+                        && request.resource.data.assignedRoleId == roleId
+                        && request.resource.data.createdBy == request.auth.uid
+                        && request.resource.data.createdByName is string
+                        && request.resource.data.createdByName.size() > 0
+                        && request.resource.data.createdByName.size() <= 100
+                        && request.resource.data.status == 'open'
+                        && request.resource.data.createdAt == request.time;
+
+          allow update, delete: if false;
+        }
       }
     }
-match /organizations/{organizationId}/tasks/{taskId} {
-  allow read: if signedIn()
-    && (isMember(organizationId) || isOwner(organizationId));
 
-  allow create: if signedIn()
-    && isOrgAdmin(organizationId)
-    && request.resource.data.keys().hasAll([
-      'title', 'description', 'priority',
-      'assignedRoleId', 'createdBy',
-      'createdAt', 'status'
-    ])
-    && request.resource.data.keys().hasOnly([
-      'title', 'description', 'priority',
-      'assignedRoleId', 'createdBy',
-      'createdAt', 'status'
-    ])
-    && request.resource.data.createdBy == request.auth.uid
-    && request.resource.data.title is string
-    && request.resource.data.description is string
-    && request.resource.data.priority in ['Low', 'Medium', 'High']
-    && request.resource.data.assignedRoleId is string
-    && exists(/databases/$(database)/documents/organizations/$(organizationId)/roles/$(request.resource.data.assignedRoleId))
-    && request.resource.data.status == 'open'
-    && request.resource.data.createdAt == request.time;
-
-  allow update, delete: if false;
-}
     match /organizations/{organizationId}/generalMessages/{messageId} {
 
       function canChat() {
