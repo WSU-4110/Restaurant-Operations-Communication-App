@@ -108,6 +108,14 @@ public class Task {
         return "completed".equals(status);
     }
 
+    public TaskState getState() {
+        return isCompleted() ? new CompletedState() : new PendingState();
+    }
+
+    public Map<String, Object> markCompleted(String completedBy, String completedByName) {
+        return getState().complete(completedBy, completedByName);
+    }
+
     public int getPriorityRank() {
         if ("High".equals(priority)) {
             return 0;

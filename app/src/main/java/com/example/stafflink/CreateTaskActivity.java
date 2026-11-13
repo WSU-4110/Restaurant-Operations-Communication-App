@@ -219,25 +219,7 @@ public class CreateTaskActivity extends AppCompatActivity {
     private void saveTask(String title, String description,
                           String priority, String selectedRoleId,
                           String creatorId) {
-
-        db.collection("users")
-                .document(creatorId)
-                .get()
-                .addOnSuccessListener(profile -> {
-                    String first = profile.getString("firstName");
-                    String last = profile.getString("lastName");
-                    String name = ((first == null ? "" : first.trim()) + " "
-                            + (last == null ? "" : last.trim())).trim();
-                    if (name.isEmpty()) {
-                        name = "Member";
-                    }
-                    if (name.length() > 100) {
-                        name = name.substring(0, 100);
-                    }
-                    writeTask(title, description, priority, selectedRoleId, creatorId, name);
-                })
-                .addOnFailureListener(e ->
-                        writeTask(title, description, priority, selectedRoleId, creatorId, "Member"));
+        ProfileName.load(db, creatorId, name -> writeTask(title, description, priority, selectedRoleId, creatorId, name));
     }
 
     private void writeTask(String title, String description,

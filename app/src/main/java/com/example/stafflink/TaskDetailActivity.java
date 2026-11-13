@@ -1,6 +1,8 @@
 package com.example.stafflink;
 
 import android.os.Bundle;
+import android.view.View;
+import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -10,14 +12,20 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
+
+import java.util.Map;
 
 public class TaskDetailActivity extends AppCompatActivity {
 
     private DocumentReference taskReference;
     private ListenerRegistration taskListener;
+    private Task currentTask;
+    private Button completeButton;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,6 +55,9 @@ public class TaskDetailActivity extends AppCompatActivity {
                 .document(roleId)
                 .collection("tasks")
                 .document(taskId);
+
+        completeButton = findViewById(R.id.taskCompleteButton);
+        completeButton.setOnClickListener(v -> completeTask());
     }
 
     @Override
@@ -75,7 +86,29 @@ public class TaskDetailActivity extends AppCompatActivity {
         super.onStop();
     }
 
+    private void completeTask() {
+        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+        if (currentTask == null || user == null) {
+            return;
+        }
+
+        completeButton.setEnabled(false);
+        ProfileName.load(FirebaseFirestore.getInstance(), user.getUid(), name -> {
+            Map<String, Object> updates = currentTask.markCompleted(user.getUid(), name);
+            if (updates == null) {
+                return;
+            }
+            taskReference.update(updates)
+                    .addOnFailureListener(e -> {
+                        completeButton.setEnabled(true);
+                        Toast.makeText(this, "Could not complete task: " + e.getMessage(),
+                                Toast.LENGTH_LONG).show();
+                    });
+        });
+    }
+
     private void showTask(Task task) {
+        currentTask = task;
         TextView title = findViewById(R.id.taskDetailTitle);
         TextView priority = findViewById(R.id.taskDetailPriority);
         TextView status = findViewById(R.id.taskDetailStatus);
@@ -89,8 +122,11 @@ public class TaskDetailActivity extends AppCompatActivity {
             status.setText("Completed by " + TaskListActivity.nameOrMember(task.getCompletedByName())
                     + " on " + TaskListActivity.formatDate(task.getCompletedAt()));
         } else {
-            status.setText("Open");
+            status.setText(task.getState().getStatus());
         }
+
+        completeButton.setVisibility(task.isCompleted() ? View.GONE : View.VISIBLE);
+        completeButton.setEnabled(true);
 
         created.setText("Created by " + TaskListActivity.nameOrMember(task.getCreatedByName())
                 + " on " + TaskListActivity.formatDate(task.getCreatedAt()));
