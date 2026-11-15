@@ -111,9 +111,6 @@ public class SignUpActivity extends AppCompatActivity {
                         }
                     });
             });
-
-
-        //takes to login page
         TextView loginText = findViewById(R.id.loginText);
         loginText.setOnClickListener(v -> {
             finish();

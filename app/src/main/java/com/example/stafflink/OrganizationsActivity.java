@@ -103,7 +103,6 @@ public class OrganizationsActivity extends AppCompatActivity {
         loadOrganizations();
     }
 
-
     private void loadOrganizations() {
         FirebaseUser currentUser = auth.getCurrentUser();
 

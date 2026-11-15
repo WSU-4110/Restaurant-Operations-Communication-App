@@ -1,0 +1,348 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isMember(orgId) {
+      return signedIn()
+        && exists(
+          /databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)
+        );
+    }
+
+    function isOwner(orgId) {
+      return signedIn()
+        && get(
+          /databases/$(database)/documents/organizations/$(orgId)
+        ).data.ownerId == request.auth.uid;
+    }
+
+    function isManager(orgId) {
+      return isMember(orgId)
+        && get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid))
+          .data.role == 'manager';
+    }
+
+    function isOrgAdmin(orgId) {
+      return isOwner(orgId) || isManager(orgId);
+    }
+
+    function validChatPermissions(p) {
+      return p is map
+        && p.keys().hasAll(['viewChat', 'sendChat'])
+        && p.keys().hasOnly(['viewChat', 'sendChat'])
+        && p.viewChat is bool
+        && p.sendChat is bool
+        && (!p.sendChat || p.viewChat);
+    }
+
+    function memberData(orgId) {
+      return get(
+        /databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)
+      ).data;
+    }
+
+    function roleData(orgId, roleId) {
+      return get(
+        /databases/$(database)/documents/organizations/$(orgId)/roles/$(roleId)
+      ).data;
+    }
+
+    function canAccessRole(orgId, roleId) {
+      return signedIn()
+        && roleData(orgId, roleId).get('archived', false) == false
+        && (isOrgAdmin(orgId)
+            || (isMember(orgId)
+                && roleId in memberData(orgId).get('roleIds', [])));
+    }
+
+    function chatPermission(orgId, roleId, key) {
+      return roleData(orgId, roleId).get('permissions', {}).get(key, true) == true;
+    }
+
+    function canViewRoleChat(orgId, roleId) {
+      return canAccessRole(orgId, roleId)
+        && (isOrgAdmin(orgId) || chatPermission(orgId, roleId, 'viewChat'));
+    }
+
+    function canSendRoleChat(orgId, roleId) {
+      return canViewRoleChat(orgId, roleId)
+        && (isOrgAdmin(orgId) || chatPermission(orgId, roleId, 'sendChat'));
+    }
+
+    function validMessage() {
+      return request.resource.data.keys().hasOnly(
+               ['text', 'senderId', 'senderName', 'timestamp'])
+        && request.resource.data.senderId == request.auth.uid
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 4000
+        && request.resource.data.senderName is string
+        && request.resource.data.senderName.size() > 0
+        && request.resource.data.senderName.size() <= 100
+        && request.resource.data.timestamp == request.time;
+    }
+
+
+    match /users/{userId} {
+      allow read, write: if signedIn()
+                         && request.auth.uid == userId;
+
+      match /organizations/{organizationId} {
+
+        allow create: if signedIn()
+                      && request.auth.uid == userId
+                      && request.resource.data.keys().hasAll(
+                          ['role', 'joinedAt'])
+                      && request.resource.data.keys().hasOnly(
+                          ['role', 'joinedAt'])
+                      && request.resource.data.role == 'employee'
+                      && request.resource.data.joinedAt == request.time
+                      && getAfter(
+                          /databases/$(database)/documents/organizations/$(organizationId)/members/$(userId)
+                      ).data.role == 'employee'
+                      && getAfter(
+                          /databases/$(database)/documents/organizations/$(organizationId)/members/$(userId)
+                      ).data.joinedAt == request.time;
+
+        allow read: if signedIn()
+                    && request.auth.uid == userId;
+      }
+    }
+
+    match /organizations/{organizationId} {
+
+      allow create: if signedIn()
+                    && request.resource.data.keys().hasAll(
+                        ['name', 'ownerId', 'createdAt', 'joinCode'])
+                    && request.resource.data.keys().hasOnly(
+                        ['name', 'ownerId', 'createdAt', 'joinCode'])
+                    && request.resource.data.ownerId == request.auth.uid
+                    && request.resource.data.name is string
+                    && request.resource.data.name.size() > 0
+                    && request.resource.data.name.size() <= 100
+                    && request.resource.data.joinCode is string
+                    && request.resource.data.joinCode.matches('[A-Z0-9]{8}')
+                    && request.resource.data.createdAt == request.time
+                    && getAfter(
+                        /databases/$(database)/documents/organizations/$(organizationId)/members/$(request.auth.uid)
+                    ).data.role == 'owner'
+                    && getAfter(
+                        /databases/$(database)/documents/organizations/$(organizationId)/members/$(request.auth.uid)
+                    ).data.joinedAt == request.time
+                    && getAfter(
+                        /databases/$(database)/documents/joinCodes/$(request.resource.data.joinCode)
+                    ).data.organizationId == organizationId
+                    && getAfter(
+                        /databases/$(database)/documents/joinCodes/$(request.resource.data.joinCode)
+                    ).data.createdAt == request.time;
+
+      allow get: if signedIn()
+                 && (resource.data.ownerId == request.auth.uid
+                     || isMember(organizationId));
+
+      allow list: if signedIn()
+                  && resource.data.ownerId == request.auth.uid;
+
+      match /members/{userId} {
+
+        allow create: if signedIn()
+                      && request.auth.uid == userId
+                      && (
+                        (
+                          request.resource.data.keys().hasAll(
+                              ['role', 'joinedAt'])
+                          && request.resource.data.keys().hasOnly(
+                              ['role', 'joinedAt'])
+                          && request.resource.data.role == 'owner'
+                          && request.resource.data.joinedAt == request.time
+                          && getAfter(
+                              /databases/$(database)/documents/organizations/$(organizationId)
+                          ).data.ownerId == userId
+                          && getAfter(
+                              /databases/$(database)/documents/organizations/$(organizationId)
+                          ).data.createdAt == request.time
+                        )
+                        ||
+                        (
+                          request.resource.data.keys().hasAll(
+                              ['role', 'joinedAt', 'joinCode'])
+                          && request.resource.data.keys().hasOnly(
+                              ['role', 'joinedAt', 'joinCode'])
+                          && request.resource.data.role == 'employee'
+                          && request.resource.data.joinedAt == request.time
+                          && request.resource.data.joinCode is string
+                          && request.resource.data.joinCode.matches('[A-Z0-9]{8}')
+                          && get(
+                              /databases/$(database)/documents/joinCodes/$(request.resource.data.joinCode)
+                          ).data.organizationId == organizationId
+                          && getAfter(
+                              /databases/$(database)/documents/users/$(userId)/organizations/$(organizationId)
+                          ).data.role == 'employee'
+                          && getAfter(
+                              /databases/$(database)/documents/users/$(userId)/organizations/$(organizationId)
+                          ).data.joinedAt == request.time
+                        )
+                      );
+
+        allow get: if signedIn()
+                   && (request.auth.uid == userId || isOrgAdmin(organizationId));
+
+        allow list: if isOrgAdmin(organizationId);
+
+        allow update: if (
+                        isOrgAdmin(organizationId)
+                        && resource.data.get('role', '') != 'owner'
+                        && request.resource.data.diff(resource.data)
+                             .affectedKeys().hasOnly(['roleIds', 'role'])
+                        && request.resource.data.keys().hasAll(['roleIds', 'role'])
+                        && request.resource.data.roleIds is list
+                        && request.resource.data.roleIds.size() <= 20
+                        && request.resource.data.role in ['employee', 'manager']
+                        && (request.resource.data.role == resource.data.role
+                            || isOwner(organizationId))
+                      ) || (
+                        signedIn()
+                        && request.auth.uid == userId
+                        && request.resource.data.diff(resource.data)
+                             .affectedKeys().hasOnly(['displayName'])
+                        && request.resource.data.keys().hasAll(['displayName'])
+                        && request.resource.data.displayName is string
+                        && request.resource.data.displayName.size() > 0
+                        && request.resource.data.displayName.size() <= 100
+                      );
+      }
+
+      match /roles/{roleId} {
+        allow read: if isMember(organizationId) || isOwner(organizationId);
+
+        allow create: if isOrgAdmin(organizationId)
+                      && request.resource.data.keys().hasAll(
+                           ['name', 'createdBy', 'createdAt', 'permissions', 'archived'])
+                      && request.resource.data.keys().hasOnly(
+                           ['name', 'createdBy', 'createdAt', 'permissions', 'archived'])
+                      && request.resource.data.name is string
+                      && request.resource.data.name.size() > 0
+                      && request.resource.data.name.size() <= 40
+                      && request.resource.data.createdBy == request.auth.uid
+                      && request.resource.data.createdAt == request.time
+                      && request.resource.data.archived == false
+                      && validChatPermissions(request.resource.data.permissions);
+
+        allow update: if isOrgAdmin(organizationId)
+                      && resource.data.get('archived', false) == false
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['name', 'permissions', 'archived', 'updatedAt', 'archivedAt'])
+                      && request.resource.data.name is string
+                      && request.resource.data.name.size() > 0
+                      && request.resource.data.name.size() <= 40
+                      && request.resource.data.get('archived', false) is bool
+                      && validChatPermissions(request.resource.data.permissions)
+                      && request.resource.data.updatedAt == request.time
+                      && (request.resource.data.get('archived', false) == false
+                          || request.resource.data.archivedAt == request.time);
+
+        allow delete: if false;
+
+       match /messages/{messageId} {
+          allow read: if canViewRoleChat(organizationId, roleId);
+
+          allow create: if canSendRoleChat(organizationId, roleId)
+                        && validMessage();
+        }
+
+        match /tasks/{taskId} {
+          allow read: if canAccessRole(organizationId, roleId);
+
+          allow create: if canAccessRole(organizationId, roleId)
+                        && request.resource.data.keys().hasAll([
+                             'title', 'description', 'priority', 'assignedRoleId',
+                             'createdBy', 'createdByName', 'createdAt', 'status'
+                           ])
+                        && request.resource.data.keys().hasOnly([
+                             'title', 'description', 'priority', 'assignedRoleId',
+                             'createdBy', 'createdByName', 'createdAt', 'status'
+                           ])
+                        && request.resource.data.title is string
+                        && request.resource.data.title.size() > 0
+                        && request.resource.data.title.size() <= 100
+                        && request.resource.data.description is string
+                        && request.resource.data.description.size() > 0
+                        && request.resource.data.description.size() <= 2000
+                        && request.resource.data.priority in ['Low', 'Medium', 'High']
+                        && request.resource.data.assignedRoleId == roleId
+                        && request.resource.data.createdBy == request.auth.uid
+                        && request.resource.data.createdByName is string
+                        && request.resource.data.createdByName.size() > 0
+                        && request.resource.data.createdByName.size() <= 100
+                        && request.resource.data.status == 'open'
+                        && request.resource.data.createdAt == request.time;
+
+          allow update: if canAccessRole(organizationId, roleId)
+                        && resource.data.status == 'open'
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                             .hasOnly(['status', 'completedBy', 'completedByName', 'completedAt'])
+                        && request.resource.data.status == 'completed'
+                        && request.resource.data.completedBy == request.auth.uid
+                        && request.resource.data.completedByName is string
+                        && request.resource.data.completedByName.size() > 0
+                        && request.resource.data.completedByName.size() <= 100
+                        && request.resource.data.completedAt == request.time;
+
+          allow delete: if false;
+        }
+      }
+    }
+
+    match /organizations/{organizationId}/generalMessages/{messageId} {
+
+      function canChat() {
+        return signedIn() &&
+          (isMember(organizationId) ||
+           get(/databases/$(database)/documents/organizations/$(organizationId))
+             .data.ownerId == request.auth.uid);
+      }
+
+      allow read: if canChat();
+
+      allow create: if canChat()
+        && request.resource.data.keys().hasAll(
+          ['text', 'senderId', 'senderName', 'timestamp'])
+        && request.resource.data.keys().hasOnly(
+          ['text', 'senderId', 'senderName', 'timestamp'])
+        && request.resource.data.senderId == request.auth.uid
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 2000
+        && request.resource.data.senderName is string
+        && request.resource.data.timestamp == request.time;
+    }
+
+    match /joinCodes/{code} {
+
+      allow create: if signedIn()
+                    && code.matches('[A-Z0-9]{8}')
+                    && request.resource.data.keys().hasAll(
+                        ['organizationId', 'createdAt'])
+                    && request.resource.data.keys().hasOnly(
+                        ['organizationId', 'createdAt'])
+                    && request.resource.data.organizationId is string
+                    && request.resource.data.createdAt == request.time
+                    && getAfter(
+                        /databases/$(database)/documents/organizations/$(request.resource.data.organizationId)
+                    ).data.ownerId == request.auth.uid
+                    && getAfter(
+                        /databases/$(database)/documents/organizations/$(request.resource.data.organizationId)
+                    ).data.joinCode == code
+                    && getAfter(
+                        /databases/$(database)/documents/organizations/$(request.resource.data.organizationId)
+                    ).data.createdAt == request.time;
+
+      allow get: if signedIn();
+    }
+  }
+}

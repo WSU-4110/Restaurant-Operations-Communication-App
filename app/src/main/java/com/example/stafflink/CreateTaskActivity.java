@@ -1,6 +1,7 @@
 package com.example.stafflink;
 
 import android.os.Bundle;
+import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Spinner;
 import android.widget.Toast;
@@ -22,6 +23,7 @@ public class CreateTaskActivity extends AppCompatActivity {
     private Spinner taskRoleSpinner;
     private FirebaseFirestore db;
     private String organizationId;
+    private String presetRoleId;
     private final List<String> roleNames = new ArrayList<>();
     private final List<String> roleIds = new ArrayList<>();
     private EditText taskTitleInput;
@@ -58,7 +60,14 @@ public class CreateTaskActivity extends AppCompatActivity {
             return;
         }
 
-        loadRoles();
+        presetRoleId = getIntent().getStringExtra("roleId");
+        if (presetRoleId != null) {
+            findViewById(R.id.taskRoleLabel).setVisibility(View.GONE);
+            taskRoleSpinner.setVisibility(View.GONE);
+        } else {
+            loadRoles();
+        }
+
         taskTitleInput = findViewById(R.id.taskTitleInput);
         taskDescriptionInput = findViewById(R.id.taskDescriptionInput);
         createTaskButton = findViewById(R.id.createTaskButton);
@@ -78,14 +87,17 @@ public class CreateTaskActivity extends AppCompatActivity {
                 return;
             }
 
-            if (roleIds.isEmpty()) {
-                Toast.makeText(this, "Select a job role", Toast.LENGTH_SHORT).show();
-                return;
+            String selectedRoleId;
+            if (presetRoleId != null) {
+                selectedRoleId = presetRoleId;
+            } else {
+                if (roleIds.isEmpty()) {
+                    Toast.makeText(this, "Select a job role", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                selectedRoleId = roleIds.get(taskRoleSpinner.getSelectedItemPosition());
             }
-
             String priority = taskPrioritySpinner.getSelectedItem().toString();
-            int rolePosition = taskRoleSpinner.getSelectedItemPosition();
-            String selectedRoleId = roleIds.get(rolePosition);
 
             FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
 
@@ -207,21 +219,28 @@ public class CreateTaskActivity extends AppCompatActivity {
     private void saveTask(String title, String description,
                           String priority, String selectedRoleId,
                           String creatorId) {
+        ProfileName.load(db, creatorId, name -> writeTask(title, description, priority, selectedRoleId, creatorId, name));
+    }
 
-        Map<String, Object> task = new HashMap<>();
+    private void writeTask(String title, String description,
+                           String priority, String selectedRoleId,
+                           String creatorId, String creatorName) {
 
-        task.put("title", title);
-        task.put("description", description);
-        task.put("priority", priority);
-        task.put("assignedRoleId", selectedRoleId);
-        task.put("createdBy", creatorId);
-        task.put("createdAt", FieldValue.serverTimestamp());
-        task.put("status", "open");
+        Task task = new Task.Builder()
+                .setTitle(title)
+                .setDescription(description)
+                .setPriority(priority)
+                .setAssignedRoleId(selectedRoleId)
+                .setCreatedBy(creatorId)
+                .setCreatedByName(creatorName)
+                .build();
 
         db.collection("organizations")
                 .document(organizationId)
+                .collection("roles")
+                .document(selectedRoleId)
                 .collection("tasks")
-                .add(task)
+                .add(task.toMap())
                 .addOnSuccessListener(documentReference -> {
                     Toast.makeText(this, "Task created successfully!",
                             Toast.LENGTH_SHORT).show();
@@ -232,6 +251,4 @@ public class CreateTaskActivity extends AppCompatActivity {
                             Toast.LENGTH_LONG).show();
                 });
     }
-
-
 }
