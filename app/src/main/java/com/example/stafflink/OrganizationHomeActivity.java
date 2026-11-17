@@ -160,9 +160,10 @@ public class OrganizationHomeActivity extends AppCompatActivity {
                             .addOnSuccessListener(member -> {
                                 RoleChatAccess access = new RoleChatAccess(user.getUid(),
                                         organizationSnapshot.getString("ownerId"), member.getData());
+                                boolean isAdmin = user.getUid().equals(organizationSnapshot.getString("ownerId")) || "manager".equals(member.getString("role"));
                                 organization.collection("roles").get()
                                         .addOnSuccessListener(roles -> renderRoleChats(
-                                                container, status, roles, access))
+                                                container, status, roles, access, isAdmin))
                                         .addOnFailureListener(error -> status.setText(
                                                 "Unable to load role. Reopen this organization to retry."));
                             })
@@ -173,7 +174,7 @@ public class OrganizationHomeActivity extends AppCompatActivity {
     }
 
     private void renderRoleChats(LinearLayout container, TextView status,
-                                 QuerySnapshot roles, RoleChatAccess access) {
+                                 QuerySnapshot roles, RoleChatAccess access, boolean isAdmin) {
         container.removeAllViews();
         for (DocumentSnapshot role : roles) {
             if (!access.canView(role.getId(), role.getData())) {
@@ -196,7 +197,9 @@ public class OrganizationHomeActivity extends AppCompatActivity {
         }
 
         if (container.getChildCount() == 0) {
-            status.setText("No role assigned yet. Ask a manager to assign you one.");
+            status.setText(isAdmin
+                    ? "No roles yet. Use Manage Roles to create one."
+                    : "No role assigned yet. Ask a manager to assign you one.");
             container.addView(status);
         }
     }
