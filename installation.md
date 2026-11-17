@@ -60,7 +60,7 @@ Do not substitute a configuration from an unrelated Firebase project. Using a ne
 ### Android Studio
 
 1. Wait for Gradle Sync to complete without errors.
-2. Select **Build > Make Project** to compile the app, or **Build > Build App Bundle(s) / APK(s) > Build APK(s)** to produce a debug APK (menu wording may vary by Android Studio version).
+2. Select **Build > Make Project** to compile the app, or **Build > Build App Bundle(s) / APK(s) > Build APK(s)** to produce a debug APK.
 3. The normal debug APK output is:
 
 ```text
