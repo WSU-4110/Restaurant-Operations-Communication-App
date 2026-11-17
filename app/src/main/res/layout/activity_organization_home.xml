@@ -62,7 +62,8 @@
                     android:textColor="@android:color/black"
                     android:background="@drawable/organization_button_background"
                     app:backgroundTint="@null"
-                    android:layout_marginBottom="16dp" />
+                    android:layout_marginBottom="0dp" />
+                <!-- Set marginBottom back to 16dp when the other buttons are restored -->
 
                 <!-- <Button
                     android:id="@+id/activityButton"
