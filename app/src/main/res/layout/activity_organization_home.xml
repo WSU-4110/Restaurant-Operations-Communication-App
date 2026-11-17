@@ -64,7 +64,7 @@
                     app:backgroundTint="@null"
                     android:layout_marginBottom="16dp" />
 
-                <Button
+                <!-- <Button
                     android:id="@+id/activityButton"
                     android:layout_width="match_parent"
                     android:layout_height="72dp"
@@ -74,9 +74,9 @@
                     android:textColor="@android:color/black"
                     android:background="@drawable/organization_button_background"
                     app:backgroundTint="@null"
-                    android:layout_marginBottom="16dp" />
+                    android:layout_marginBottom="16dp" /> -->
 
-                <Button
+                <!-- <Button
                     android:id="@+id/issuesButton"
                     android:layout_width="match_parent"
                     android:layout_height="72dp"
@@ -86,9 +86,9 @@
                     android:textColor="@android:color/black"
                     android:background="@drawable/organization_button_background"
                     app:backgroundTint="@null"
-                    android:layout_marginBottom="16dp" />
+                    android:layout_marginBottom="16dp" /> -->
 
-                <Button
+                <!-- <Button
                     android:id="@+id/inventoryButton"
                     android:layout_width="match_parent"
                     android:layout_height="72dp"
@@ -97,7 +97,7 @@
                     android:textAllCaps="false"
                     android:textColor="@android:color/black"
                     android:background="@drawable/organization_button_background"
-                    app:backgroundTint="@null" />
+                    app:backgroundTint="@null" /> -->
 
                 <LinearLayout
                     android:id="@+id/roleChatsContainer"
