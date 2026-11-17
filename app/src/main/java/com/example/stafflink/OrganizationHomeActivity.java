@@ -14,6 +14,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -24,12 +25,18 @@ import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.QuerySnapshot;
+import com.google.firebase.firestore.WriteBatch;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class OrganizationHomeActivity extends AppCompatActivity {
 
     private String organizationId;
     private String organizationName;
+    private String currentJoinCode;
 
     private FirebaseAuth auth;
     private FirebaseFirestore db;
@@ -255,18 +262,56 @@ public class OrganizationHomeActivity extends AppCompatActivity {
             return;
         }
 
+        currentJoinCode = joinCode;
         LinearLayout joinCodeSection = findViewById(R.id.joinCodeSection);
         TextView joinCodeText = findViewById(R.id.joinCodeText);
         Button copyJoinCodeButton = findViewById(R.id.copyJoinCodeButton);
+        Button newJoinCodeButton = findViewById(R.id.newJoinCodeButton);
         joinCodeText.setText(joinCode);
         joinCodeSection.setVisibility(View.VISIBLE);
         copyJoinCodeButton.setOnClickListener(v -> {
             ClipboardManager clipboard = (ClipboardManager)
                     getSystemService(Context.CLIPBOARD_SERVICE);
             if (clipboard != null) {
-                clipboard.setPrimaryClip(ClipData.newPlainText("StaffLink Join Code", joinCode));
+                clipboard.setPrimaryClip(ClipData.newPlainText("StaffLink Join Code", currentJoinCode));
                 Toast.makeText(this, "Join code copied!", Toast.LENGTH_SHORT).show();
             }
         });
+
+        newJoinCodeButton.setOnClickListener(v -> new AlertDialog.Builder(this)
+                .setTitle("Generate a new join code?")
+                .setMessage("The current code will stop working. Members who already joined stay in the organization.")
+                .setPositiveButton("Generate", (dialog, which) -> regenerateJoinCode())
+                .setNegativeButton("Cancel", null)
+                .show());
+    }
+
+    private void regenerateJoinCode() {
+        String oldCode = currentJoinCode;
+        String newCode = CreateOrganizationActivity.generateJoinCode();
+        Button newJoinCodeButton = findViewById(R.id.newJoinCodeButton);
+        newJoinCodeButton.setEnabled(false);
+
+        Map<String, Object> joinCodeData = new HashMap<>();
+        joinCodeData.put("organizationId", organizationId);
+        joinCodeData.put("createdAt", FieldValue.serverTimestamp());
+
+        WriteBatch batch = db.batch();
+        batch.set(db.collection("joinCodes").document(newCode), joinCodeData);
+        batch.update(db.collection("organizations").document(organizationId), "joinCode", newCode);
+        batch.delete(db.collection("joinCodes").document(oldCode));
+        batch.commit()
+                .addOnSuccessListener(unused -> {
+                    currentJoinCode = newCode;
+                    TextView joinCodeText = findViewById(R.id.joinCodeText);
+                    joinCodeText.setText(newCode);
+                    newJoinCodeButton.setEnabled(true);
+                    Toast.makeText(this, "New join code created", Toast.LENGTH_SHORT).show();
+                })
+                .addOnFailureListener(error -> {
+                    newJoinCodeButton.setEnabled(true);
+                    Toast.makeText(this, "Could not create a new code: " + error.getMessage(),
+                            Toast.LENGTH_LONG).show();
+                });
     }
 }

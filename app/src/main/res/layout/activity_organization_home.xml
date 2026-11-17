@@ -156,14 +156,30 @@
                     android:textSize="26sp"
                     android:textStyle="bold" />
 
-                <Button
-                    android:id="@+id/copyJoinCodeButton"
+                <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:text="Copy Code"
-                    android:textAllCaps="false"
-                    android:backgroundTint="@color/stafflink_1" />
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/copyJoinCodeButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Copy Code"
+                        android:textAllCaps="false"
+                        android:backgroundTint="@color/stafflink_1" />
+
+                    <Button
+                        android:id="@+id/newJoinCodeButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:text="New Code"
+                        android:textAllCaps="false"
+                        android:backgroundTint="@color/stafflink_1" />
+
+                </LinearLayout>
 
                 <TextView
                     android:layout_width="wrap_content"

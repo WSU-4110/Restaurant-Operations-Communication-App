@@ -42,7 +42,7 @@ public class CreateOrganizationActivity extends AppCompatActivity {
         });
     }
 
-    private String generateJoinCode() {
+    static String generateJoinCode() {
         String characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         SecureRandom random = new SecureRandom();
         StringBuilder code = new StringBuilder();
