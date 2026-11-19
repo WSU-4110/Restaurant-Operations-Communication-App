@@ -21,6 +21,8 @@ Stop putting off burn chart updates so that it remains accurate and up to date t
 Continue with workload distribution and holding each other accountable for the assigned features. Keep up consistent communication on progress.
 
 
+**Presentation Feedback:**
+
 
 **Sprint 3:**
 
